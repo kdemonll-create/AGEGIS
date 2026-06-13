@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script>try{var __t=localStorage.getItem('aegis.theme');if(__t)document.documentElement.dataset.theme=__t}catch(e){}</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Threat Watch · AEGIS</title>
+<link rel="icon" type="image/png" href="assets/favicon.png"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chivo:wght@400;600;800;900&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/aegis-common.css">
+<style>
+  #map{height:580px;border-radius:var(--radius);border:1px solid var(--line);background:#070a0f}
+  #mapWrap{position:relative}
+  .map-hud{position:absolute;bottom:12px;left:12px;z-index:600;background:rgba(7,10,15,.85);border:1px solid var(--line-bright);border-radius:7px;padding:7px 11px;font-family:var(--mono);font-size:11px;color:var(--primary);backdrop-filter:blur(4px);pointer-events:none}
+  .layer-ctl{position:absolute;top:12px;left:12px;z-index:600;display:flex;gap:4px;background:rgba(7,10,15,.88);border:1px solid var(--line-bright);border-radius:7px;padding:4px;backdrop-filter:blur(4px)}
+  .layer-ctl button{background:transparent;color:var(--ink-dim);font-family:var(--mono);font-size:10.5px;padding:5px 9px;border-radius:5px;border:none;cursor:pointer}
+  .layer-ctl button.active{background:var(--primary);color:#06181b;font-weight:700}
+  .geo-row{display:flex;gap:8px;align-items:flex-end}
+  .geo-row .field{flex:1;margin-bottom:0}
+  .geo-status{font-family:var(--mono);font-size:11px;color:var(--ink-faint);margin-top:6px;min-height:14px}
+  .tier{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:6px;border:1px solid;text-transform:uppercase;letter-spacing:.06em}
+  .tier-1{color:var(--sev-low);border-color:var(--sev-low)}
+  .tier-2{color:var(--sev-elevated);border-color:var(--sev-elevated)}
+  .tier-3{color:var(--sev-high);border-color:var(--sev-high)}
+  .tier-4{color:var(--sev-critical);border-color:var(--sev-critical)}
+  .status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle}
+  .alert-strip{display:flex;align-items:center;gap:10px;border:1px solid var(--sev-critical);background:rgba(217,106,91,.08);border-radius:9px;padding:11px 14px;margin-bottom:18px;font-size:13px}
+  .alert-strip b{color:var(--sev-critical)}
+</style>
+</head>
+<body>
+<div class="class-banner top" data-aegis-class>Unclassified // Internal Use</div>
+
+<header class="topbar">
+  <a class="brand" href="index.html" style="text-decoration:none;color:inherit">
+    <img class="brand-logo" src="assets/logo.png" alt="">
+    <div><h1>Threat Watch</h1><div class="sub" data-aegis-org>Field Security Operations</div></div>
+  </a>
+  <div class="spacer"></div>
+  <div class="dtg"><small>DTG (ZULU)</small><span data-aegis-dtg>—</span></div>
+  <a class="btn sm ghost mono" href="index.html">⌂ Suite</a>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button class="active" data-tab="dash">Dashboard</button>
+  <button data-tab="threats">Threat Log <span class="ct" id="ct-threats">0</span></button>
+  <button data-tab="people">Personnel <span class="ct" id="ct-people">0</span></button>
+  <button data-tab="regions">Regional Risk <span class="ct" id="ct-regions">0</span></button>
+  <button data-tab="map">GEOINT Map</button>
+</nav>
+
+<main>
+  <!-- DASHBOARD -->
+  <section class="view active" id="view-dash">
+    <div id="alertStrip"></div>
+    <div class="stats" id="dashStats"></div>
+    <div class="grid cols-2">
+      <div class="card"><div class="hd"><h3>Threats by Severity</h3><span class="tag">POSTURE</span></div><div class="bd" id="sevBreak"></div></div>
+      <div class="card"><div class="hd"><h3>Threats by Category</h3><span class="tag">TYPE</span></div><div class="bd" id="catBreak"></div></div>
+    </div>
+    <div class="card" style="margin-top:15px"><div class="hd"><h3>Latest Reporting</h3><span class="tag">RECENT 6</span></div><div class="bd" style="padding:0"><div id="recent"></div></div></div>
+    <div class="card" style="margin-top:15px"><div class="hd"><h3>Personnel Requiring Attention</h3><span class="tag">DUTY OF CARE</span></div><div class="bd" style="padding:0"><div id="pplAttention"></div></div></div>
+  </section>
+
+  <!-- THREATS -->
+  <section class="view" id="view-threats">
+    <div class="toolbar">
+      <div class="search"><input id="t-search" placeholder="Search threats…"></div>
+      <select id="t-fsev" style="width:auto"><option value="">All severities</option></select>
+      <select id="t-fcat" style="width:auto"><option value="">All categories</option></select>
+      <select id="t-fstatus" style="width:auto"><option value="">All statuses</option></select>
+      <div class="spacer"></div>
+      <button class="btn primary" id="btn-new-threat">+ Log Threat</button>
+    </div>
+    <div class="card"><div class="bd" style="padding:0"><div id="threatTable"></div></div></div>
+  </section>
+
+  <!-- PEOPLE -->
+  <section class="view" id="view-people">
+    <div class="toolbar">
+      <div class="search"><input id="p-search" placeholder="Search personnel…"></div>
+      <select id="p-fstatus" style="width:auto"><option value="">All statuses</option></select>
+      <div class="spacer"></div>
+      <button class="btn primary" id="btn-new-person">+ Add Personnel</button>
+    </div>
+    <div class="card"><div class="bd" style="padding:0"><div id="peopleTable"></div></div></div>
+  </section>
+
+  <!-- REGIONS -->
+  <section class="view" id="view-regions">
+    <div class="toolbar">
+      <span class="note">Country / area risk tiers, modeled on the standard 4-level travel-advisory scale.</span>
+      <div class="spacer"></div>
+      <button class="btn primary" id="btn-new-region">+ Add Region</button>
+    </div>
+    <div class="card"><div class="bd" style="padding:0"><div id="regionTable"></div></div></div>
+  </section>
+
+  <!-- MAP -->
+  <section class="view" id="view-map">
+    <div class="row">
+      <h2 class="section">GEOINT Map <small>Common operating picture</small></h2>
+      <button class="btn sm" id="btn-fit">⊹ Fit All</button>
+    </div>
+    <div id="mapWrap">
+      <div id="map"></div>
+      <div class="layer-ctl">
+        <button class="active" data-layer="threats">Threats</button>
+        <button class="active" data-layer="people">Personnel</button>
+        <button class="active" data-layer="regions">Regions</button>
+      </div>
+      <div class="map-hud" id="mapHud">LAT --.----, LON --.----</div>
+    </div>
+    <p class="hint">Threat pins are colored by severity; personnel markers by accountability status. Use “Locate” in each form to geocode an address. Map tiles need internet; your data stays in your store.</p>
+  </section>
+</main>
+
+<!-- DRAWER -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="dh"><h3 id="drawerTitle">—</h3><button class="x" id="drawerX">×</button></div>
+  <div class="db" id="drawerBody"></div>
+  <div class="df" id="drawerFoot"></div>
+</aside>
+
+<div class="class-banner bottom" data-aegis-class>Unclassified // Internal Use</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="assets/aegis-common.js"></script>
+<script src="assets/aegis-i18n.js"></script>
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const esc=AEGIS.esc;
+
+const SEVS=['Low','Guarded','Elevated','High','Critical'];
+const SEV_CLASS={Low:'sev-low',Guarded:'sev-guarded',Elevated:'sev-elevated',High:'sev-high',Critical:'sev-critical'};
+const SEV_COLOR={Low:'#6fb98f',Guarded:'#9bbf6f',Elevated:'#d9a441',High:'#e0834a',Critical:'#d96a5b'};
+const SEV_RANK={Low:1,Guarded:2,Elevated:3,High:4,Critical:5};
+const CATS=['Civil Unrest','Terrorism','Armed Conflict','Crime','Natural Disaster','Health / Epidemic','Infrastructure','Transport Disruption','Political Instability','Cyber','Other'];
+const STATUSES=['Monitoring','Active','Mitigating','Resolved','Closed'];
+const PSTATUS=['Accounted For','Check-in Due','Unreachable','In Transit','Off-grid (OK)'];
+const PSTATUS_COLOR={'Accounted For':'#6fb98f','Check-in Due':'#d9a441','Unreachable':'#d96a5b','In Transit':'#3fb6c4','Off-grid (OK)':'#9a8bd0'};
+const TIERS={1:'Normal precautions',2:'Increased caution',3:'Reconsider travel',4:'Do not travel'};
+
+let THREATS=[], PEOPLE=[], REGIONS=[];
+let MAP=null, layerThreats=null, layerPeople=null, layerRegions=null, mapReady=false;
+const layerOn={threats:true,people:true,regions:true};
+
+/* ---------- data ---------- */
+async function reload(){
+  THREATS=await AEGIS.store.list('threats');
+  PEOPLE=await AEGIS.store.list('personnel');
+  REGIONS=await AEGIS.store.list('regions');
+  $('#ct-threats').textContent=THREATS.length;
+  $('#ct-people').textContent=PEOPLE.length;
+  $('#ct-regions').textContent=REGIONS.length;
+  renderAll();
+}
+function renderAll(){ renderDash(); renderThreats(); renderPeople(); renderRegions(); if(mapReady) renderMap(); }
+
+const km=(a,b)=>{const R=6371,dLat=(b[0]-a[0])*Math.PI/180,dLon=(b[1]-a[1])*Math.PI/180,
+  s=Math.sin(dLat/2)**2+Math.cos(a[0]*Math.PI/180)*Math.cos(b[0]*Math.PI/180)*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(s));};
+const isActive=t=>t.status!=='Resolved'&&t.status!=='Closed';
+
+function personnelAtRisk(){
+  // person flagged if: status Unreachable/Check-in Due, OR within 150km of an active High/Critical threat,
+  // OR located in a Tier 3/4 region (country match).
+  const hot=THREATS.filter(t=>isActive(t)&&t.lat!=null&&(t.severity==='High'||t.severity==='Critical'));
+  const hotRegions={}; REGIONS.forEach(r=>{ if(r.tier>=3 && r.name) hotRegions[r.name.toLowerCase()]=r.tier; });
+  return PEOPLE.map(p=>{
+    const reasons=[];
+    if(p.status==='Unreachable') reasons.push('Unreachable');
+    if(p.status==='Check-in Due') reasons.push('Check-in due');
+    if(p.lat!=null){ for(const t of hot){ if(km([p.lat,p.lng],[t.lat,t.lng])<=150){ reasons.push('Near '+t.severity+' threat: '+t.title); break; } } }
+    if(p.country && hotRegions[p.country.toLowerCase()]) reasons.push('Tier '+hotRegions[p.country.toLowerCase()]+' region');
+    return {p, reasons};
+  }).filter(x=>x.reasons.length);
+}
+
+/* ---------- nav ---------- */
+$('#tabs').addEventListener('click',e=>{const b=e.target.closest('button[data-tab]');if(!b)return;
+  const t=b.dataset.tab;
+  $$('#tabs button').forEach(x=>x.classList.toggle('active',x===b));
+  $$('.view').forEach(v=>v.classList.remove('active'));
+  $('#view-'+t).classList.add('active');
+  if(t==='map') setTimeout(initMap,60);
+});
+
+/* ---------- dashboard ---------- */
+function bar(label,val,max,color){
+  return `<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;margin-bottom:5px"><span>${esc(label)}</span><span style="color:var(--ink-dim)">${val}</span></div>
+    <div style="height:8px;background:var(--bg);border:1px solid var(--line);border-radius:5px;overflow:hidden"><i style="display:block;height:100%;width:${max?val/max*100:0}%;background:${color}"></i></div></div>`;
+}
+function renderDash(){
+  const active=THREATS.filter(isActive);
+  const crit=active.filter(t=>t.severity==='Critical'||t.severity==='High').length;
+  const atRisk=personnelAtRisk();
+  $('#dashStats').innerHTML=
+    stat('Active Threats',active.length,active.length?'amber':'green')+
+    stat('High / Critical',crit,crit?'red':'green')+
+    stat('Personnel Tracked',PEOPLE.length,'violet')+
+    stat('Need Attention',atRisk.length,atRisk.length?'orange':'green')+
+    stat('Regions Watched',REGIONS.length,'amber');
+
+  const critOpen=active.filter(t=>t.severity==='Critical');
+  $('#alertStrip').innerHTML = critOpen.length
+    ? `<div class="alert-strip"><span style="font-size:18px">⚠</span><div><b>${critOpen.length} CRITICAL</b> threat${critOpen.length>1?'s':''} active — ${esc(critOpen.slice(0,3).map(t=>t.title).join('; '))}${critOpen.length>3?'…':''}</div></div>` : '';
+
+  const sc={}; SEVS.forEach(s=>sc[s]=0); active.forEach(t=>sc[t.severity]=(sc[t.severity]||0)+1);
+  const smax=Math.max(1,...Object.values(sc));
+  $('#sevBreak').innerHTML=SEVS.slice().reverse().map(s=>bar(s,sc[s]||0,smax,SEV_COLOR[s])).join('') || '<div class="empty">No active threats</div>';
+
+  const cc={}; active.forEach(t=>cc[t.category]=(cc[t.category]||0)+1);
+  const cmax=Math.max(1,...Object.values(cc));
+  const ckeys=Object.keys(cc).sort((a,b)=>cc[b]-cc[a]);
+  $('#catBreak').innerHTML=ckeys.length?ckeys.map(c=>bar(c,cc[c],cmax,'var(--primary)')).join(''):'<div class="empty">No active threats</div>';
+
+  const recent=[...THREATS].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)).slice(0,6);
+  $('#recent').innerHTML=recent.length?`<table><tbody>${recent.map(t=>`
+    <tr class="clickrow" data-threat="${t.id}">
+      <td style="font-family:var(--mono);font-size:10px;color:var(--ink-faint);white-space:nowrap">${esc(t.dtg||'')}</td>
+      <td><b style="font-weight:500">${esc(t.title)}</b></td>
+      <td><span class="pill int">${esc(t.category)}</span></td>
+      <td>${sevPill(t.severity)}</td>
+      <td style="font-size:11px;color:var(--ink-dim)">${esc(t.location||'—')}</td>
+    </tr>`).join('')}</tbody></table>`:'<div class="empty"><span>🌐</span>No threats logged yet.</div>';
+  $$('#recent [data-threat]').forEach(r=>r.onclick=()=>viewThreat(r.dataset.threat));
+
+  $('#pplAttention').innerHTML=atRisk.length?`<table><tbody>${atRisk.map(({p,reasons})=>`
+    <tr class="clickrow" data-person="${p.id}">
+      <td><span class="status-dot" style="background:${PSTATUS_COLOR[p.status]||'#8b97a6'}"></span><b style="font-weight:500">${esc(p.name)}</b></td>
+      <td style="font-size:11px;color:var(--ink-dim)">${esc(p.role||'')}</td>
+      <td style="font-size:11px;color:var(--ink-dim)">${esc(p.currentLocation||p.country||'—')}</td>
+      <td style="font-size:11px;color:var(--amber)">${esc(reasons.join(' · '))}</td>
+    </tr>`).join('')}</tbody></table>`:'<div class="empty"><span>✓</span>All tracked personnel accounted for.</div>';
+  $$('#pplAttention [data-person]').forEach(r=>r.onclick=()=>viewPerson(r.dataset.person));
+}
+const stat=(l,v,c)=>`<div class="stat ${c||''}"><div class="lbl">${l}</div><div class="num">${v}</div></div>`;
+const sevPill=s=>`<span class="sev ${SEV_CLASS[s]||'sev-low'}"><span class="d"></span>${esc(s||'—')}</span>`;
+
+/* ---------- threats table ---------- */
+function fillFilter(sel,arr){ if(sel.options.length<=1) arr.forEach(v=>sel.add(new Option(v,v))); }
+function renderThreats(){
+  fillFilter($('#t-fsev'),SEVS); fillFilter($('#t-fcat'),CATS); fillFilter($('#t-fstatus'),STATUSES);
+  const q=($('#t-search').value||'').toLowerCase(), fs=$('#t-fsev').value, fc=$('#t-fcat').value, fst=$('#t-fstatus').value;
+  let rows=[...THREATS].sort((a,b)=>(SEV_RANK[b.severity]||0)-(SEV_RANK[a.severity]||0)||(b.createdAt||0)-(a.createdAt||0))
+    .filter(t=>!fs||t.severity===fs).filter(t=>!fc||t.category===fc).filter(t=>!fst||t.status===fst)
+    .filter(t=>!q||((t.title+t.summary+(t.location||'')+(t.country||'')).toLowerCase().includes(q)));
+  $('#threatTable').innerHTML=rows.length?`<table>
+    <thead><tr><th>DTG</th><th>Threat</th><th>Category</th><th>Severity</th><th>Status</th><th>Location</th><th>Affected</th></tr></thead>
+    <tbody>${rows.map(t=>`<tr class="clickrow" data-threat="${t.id}">
+      <td style="font-family:var(--mono);font-size:10px;color:var(--ink-faint);white-space:nowrap">${esc(t.dtg||'')}</td>
+      <td><b style="font-weight:500">${esc(t.title)}</b><div style="color:var(--ink-faint);font-size:11px;margin-top:2px">${esc((t.summary||'').slice(0,70))}${t.summary&&t.summary.length>70?'…':''}</div></td>
+      <td><span class="pill int">${esc(t.category)}</span></td>
+      <td>${sevPill(t.severity)}</td>
+      <td style="font-size:11px;color:${isActive(t)?'var(--ink)':'var(--ink-faint)'}">${esc(t.status||'—')}</td>
+      <td style="font-size:11px;color:var(--ink-dim)">${esc(t.location||t.country||'—')}${t.lat!=null?' <span style="color:var(--primary);font-family:var(--mono);font-size:10px">⌖</span>':''}</td>
+      <td style="font-family:var(--mono);font-size:11px">${(t.affected||[]).length||''}</td>
+    </tr>`).join('')}</tbody></table>`:'<div class="empty"><span>🛰</span>No threats match. Log one to begin.</div>';
+  $$('#threatTable [data-threat]').forEach(r=>r.onclick=()=>viewThreat(r.dataset.threat));
+}
+['t-search','t-fsev','t-fcat','t-fstatus'].forEach(id=>$('#'+id).addEventListener('input',renderThreats));
+
+function viewThreat(id){
+  const t=THREATS.find(x=>x.id===id); if(!t)return;
+  const affected=(t.affected||[]).map(pid=>PEOPLE.find(p=>p.id===pid)).filter(Boolean);
+  openDrawer(t.title,`
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">${sevPill(t.severity)}<span class="pill int">${esc(t.category)}</span><span class="pill">${esc(t.status)}</span></div>
+    <dl class="kv">
+      <dt>DTG</dt><dd style="font-family:var(--mono)">${esc(t.dtg||'—')}</dd>
+      <dt>Location</dt><dd>${esc(t.location||'—')}${t.country?' · '+esc(t.country):''} ${t.lat!=null?`<span style="font-family:var(--mono);font-size:10px;color:var(--ink-faint)">[${(+t.lat).toFixed(3)}, ${(+t.lng).toFixed(3)}]</span>`:''}</dd>
+      ${t.source?`<dt>Source</dt><dd>${/^https?:/i.test(t.source)?`<a href="${esc(t.source)}" target="_blank" rel="noopener noreferrer">${esc(shortSrc(t.source))}</a>`:esc(t.source)}</dd>`:''}
+    </dl>
+    ${t.summary?`<div class="fl" style="margin:16px 0 6px">Summary</div><div class="report-text">${esc(t.summary)}</div>`:''}
+    ${t.recommendation?`<div class="fl" style="margin:16px 0 6px">Protective Recommendation</div><div class="report-text" style="border-left-color:var(--amber)">${esc(t.recommendation)}</div>`:''}
+    ${affected.length?`<div class="fl" style="margin:16px 0 6px">Affected Personnel (${affected.length})</div><div style="display:flex;flex-wrap:wrap;gap:6px">${affected.map(p=>`<span class="chip" data-jump="${p.id}" style="cursor:pointer"><span class="status-dot" style="background:${PSTATUS_COLOR[p.status]||'#8b97a6'}"></span>${esc(p.name)}</span>`).join('')}</div>`:''}
+  `,[
+    {label:'Edit',cls:'btn',fn:()=>threatForm(t)},
+    {label:'Delete',cls:'btn danger',fn:async()=>{ if(confirm('Delete this threat?')){ await AEGIS.store.remove('threats',id); closeDrawer(); AEGIS.flash('Threat deleted'); reload(); } }}
+  ]);
+  $$('#drawerBody [data-jump]').forEach(c=>c.onclick=()=>viewPerson(c.dataset.jump));
+}
+const shortSrc=u=>{try{return new URL(u).hostname.replace(/^www\./,'');}catch(e){return u;}};
+
+function threatForm(t){
+  t=t||{};
+  const peopleOpts=PEOPLE.map(p=>`<option value="${p.id}" ${(t.affected||[]).includes(p.id)?'selected':''}>${esc(p.name)}${p.role?' · '+esc(p.role):''}</option>`).join('');
+  openDrawer(t.id?'Edit Threat':'Log Threat',`
+    <div class="field"><label class="fl">Title / Headline</label><input id="f-title" value="${esc(t.title||'')}" placeholder="e.g. Protests escalating near city center"></div>
+    <div class="row2">
+      <div class="field"><label class="fl">Category</label><select id="f-cat">${CATS.map(c=>`<option ${t.category===c?'selected':''}>${c}</option>`).join('')}</select></div>
+      <div class="field"><label class="fl">Severity</label><select id="f-sev">${SEVS.map(s=>`<option ${t.severity===s?'selected':''}>${s}</option>`).join('')}</select></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label class="fl">Status</label><select id="f-status">${STATUSES.map(s=>`<option ${t.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
+      <div class="field"><label class="fl">DTG / Date</label><input id="f-dtg" value="${esc(t.dtg||AEGIS.dtgNow())}"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label class="fl">Location (place)</label><input id="f-loc" value="${esc(t.location||'')}" placeholder="e.g. Nairobi CBD"></div>
+      <div class="field"><label class="fl">Country / Area</label><input id="f-country" value="${esc(t.country||'')}" placeholder="e.g. Kenya"></div>
+    </div>
+    <div class="geo-row">
+      <div class="field"><label class="fl">Latitude</label><input id="f-lat" type="number" step="any" value="${t.lat??''}"></div>
+      <div class="field"><label class="fl">Longitude</label><input id="f-lng" type="number" step="any" value="${t.lng??''}"></div>
+      <button class="btn sm" type="button" id="geoBtn" style="margin-bottom:0">⌖ Locate</button>
+    </div><div class="geo-status" id="geoStatus"></div>
+    <div class="field" style="margin-top:14px"><label class="fl">Summary</label><textarea id="f-summary" placeholder="What is happening, and the assessed impact…">${esc(t.summary||'')}</textarea></div>
+    <div class="field"><label class="fl">Protective Recommendation</label><textarea id="f-rec" placeholder="Recommended actions: shelter, avoid area, check-in cadence, evacuation triggers…">${esc(t.recommendation||'')}</textarea></div>
+    <div class="field"><label class="fl">Source (URL or note)</label><input id="f-source" value="${esc(t.source||'')}" placeholder="https://… or source description"></div>
+    <div class="field"><label class="fl">Affected Personnel (Ctrl/Cmd-click for multiple)</label><select id="f-affected" multiple size="4">${peopleOpts||'<option disabled>No personnel registered yet</option>'}</select></div>
+  `,[
+    {label:'Cancel',cls:'btn ghost',fn:closeDrawer},
+    {label:'Save Threat',cls:'btn primary',fn:async()=>{
+      const title=$('#f-title').value.trim(); if(!title){AEGIS.flash('Title required');return;}
+      const lat=parseFloat($('#f-lat').value), lng=parseFloat($('#f-lng').value);
+      const rec={ id:t.id||undefined, createdAt:t.createdAt||Date.now(),
+        title, category:$('#f-cat').value, severity:$('#f-sev').value, status:$('#f-status').value,
+        dtg:$('#f-dtg').value.trim(), location:$('#f-loc').value.trim(), country:$('#f-country').value.trim(),
+        lat:isNaN(lat)?null:lat, lng:isNaN(lng)?null:lng,
+        summary:$('#f-summary').value.trim(), recommendation:$('#f-rec').value.trim(), source:$('#f-source').value.trim(),
+        affected:[...$('#f-affected').selectedOptions].map(o=>o.value) };
+      await AEGIS.store.put('threats',rec); closeDrawer(); AEGIS.flash('Threat logged'); reload();
+    }}
+  ]);
+  wireGeo();
+}
+$('#btn-new-threat').onclick=()=>threatForm();
+
+/* ---------- people ---------- */
+function renderPeople(){
+  fillFilter($('#p-fstatus'),PSTATUS);
+  const q=($('#p-search').value||'').toLowerCase(), fs=$('#p-fstatus').value;
+  let rows=[...PEOPLE].sort((a,b)=>(a.name||'').localeCompare(b.name||'')).filter(p=>!fs||p.status===fs)
+    .filter(p=>!q||((p.name+(p.role||'')+(p.currentLocation||'')+(p.country||'')).toLowerCase().includes(q)));
+  $('#peopleTable').innerHTML=rows.length?`<table>
+    <thead><tr><th>Name</th><th>Role</th><th>Location</th><th>Status</th><th>Last Contact</th></tr></thead>
+    <tbody>${rows.map(p=>`<tr class="clickrow" data-person="${p.id}">
+      <td><b style="font-weight:500">${esc(p.name)}</b>${p.org?`<div style="color:var(--ink-faint);font-size:11px">${esc(p.org)}</div>`:''}</td>
+      <td style="font-size:12px;color:var(--ink-dim)">${esc(p.role||'—')}</td>
+      <td style="font-size:12px;color:var(--ink-dim)">${esc(p.currentLocation||p.country||'—')}${p.lat!=null?' <span style="color:var(--primary);font-family:var(--mono);font-size:10px">⌖</span>':''}</td>
+      <td style="font-size:11px"><span class="status-dot" style="background:${PSTATUS_COLOR[p.status]||'#8b97a6'}"></span>${esc(p.status||'—')}</td>
+      <td style="font-family:var(--mono);font-size:10px;color:var(--ink-faint)">${esc(p.lastContact||'—')}</td>
+    </tr>`).join('')}</tbody></table>`:'<div class="empty"><span>👤</span>No personnel registered. Add the people you are responsible for.</div>';
+  $$('#peopleTable [data-person]').forEach(r=>r.onclick=()=>viewPerson(r.dataset.person));
+}
+['p-search','p-fstatus'].forEach(id=>$('#'+id).addEventListener('input',renderPeople));
+
+function viewPerson(id){
+  const p=PEOPLE.find(x=>x.id===id); if(!p)return;
+  const near=THREATS.filter(t=>isActive(t)&&t.lat!=null&&p.lat!=null&&km([p.lat,p.lng],[t.lat,t.lng])<=150)
+    .sort((a,b)=>(SEV_RANK[b.severity]||0)-(SEV_RANK[a.severity]||0));
+  openDrawer(p.name,`
+    <div style="margin-bottom:14px"><span class="status-dot" style="background:${PSTATUS_COLOR[p.status]||'#8b97a6'}"></span><b>${esc(p.status||'—')}</b></div>
+    <dl class="kv">
+      ${p.role?`<dt>Role</dt><dd>${esc(p.role)}</dd>`:''}
+      ${p.org?`<dt>Organization</dt><dd>${esc(p.org)}</dd>`:''}
+      <dt>Location</dt><dd>${esc(p.currentLocation||'—')}${p.country?' · '+esc(p.country):''} ${p.lat!=null?`<span style="font-family:var(--mono);font-size:10px;color:var(--ink-faint)">[${(+p.lat).toFixed(3)}, ${(+p.lng).toFixed(3)}]</span>`:''}</dd>
+      ${p.contact?`<dt>Contact</dt><dd>${esc(p.contact)}</dd>`:''}
+      ${p.lastContact?`<dt>Last Contact</dt><dd style="font-family:var(--mono)">${esc(p.lastContact)}</dd>`:''}
+    </dl>
+    ${p.travelNotes?`<div class="fl" style="margin:16px 0 6px">Movement / Itinerary</div><div class="report-text">${esc(p.travelNotes)}</div>`:''}
+    ${p.notes?`<div class="fl" style="margin:16px 0 6px">Notes</div><div class="report-text">${esc(p.notes)}</div>`:''}
+    <div class="fl" style="margin:16px 0 6px">Nearby Active Threats (${near.length})</div>
+    ${near.length?near.map(t=>`<div class="chip" data-jump="${t.id}" style="cursor:pointer;margin:0 4px 4px 0">${sevPill(t.severity)} ${esc(t.title)} <span style="color:var(--ink-faint)">${Math.round(km([p.lat,p.lng],[t.lat,t.lng]))}km</span></div>`).join(''):'<div class="note">None within 150 km (of geolocated threats).</div>'}
+  `,[
+    {label:'Edit',cls:'btn',fn:()=>personForm(p)},
+    {label:'Delete',cls:'btn danger',fn:async()=>{ if(confirm('Delete this person?')){ await AEGIS.store.remove('personnel',id);
+      for(const t of THREATS){ if((t.affected||[]).includes(id)){ t.affected=t.affected.filter(x=>x!==id); await AEGIS.store.put('threats',t); } }
+      closeDrawer(); AEGIS.flash('Personnel removed'); reload(); } }}
+  ]);
+  $$('#drawerBody [data-jump]').forEach(c=>c.onclick=()=>viewThreat(c.dataset.jump));
+}
+function personForm(p){
+  p=p||{};
+  openDrawer(p.id?'Edit Personnel':'Add Personnel',`
+    <div class="row2">
+      <div class="field"><label class="fl">Name</label><input id="f-name" value="${esc(p.name||'')}"></div>
+      <div class="field"><label class="fl">Role / Title</label><input id="f-role" value="${esc(p.role||'')}" placeholder="e.g. Field engineer"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label class="fl">Organization / Team</label><input id="f-org" value="${esc(p.org||'')}"></div>
+      <div class="field"><label class="fl">Status</label><select id="f-status">${PSTATUS.map(s=>`<option ${p.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label class="fl">Current Location</label><input id="f-loc" value="${esc(p.currentLocation||'')}" placeholder="City / area"></div>
+      <div class="field"><label class="fl">Country</label><input id="f-country" value="${esc(p.country||'')}"></div>
+    </div>
+    <div class="geo-row">
+      <div class="field"><label class="fl">Latitude</label><input id="f-lat" type="number" step="any" value="${p.lat??''}"></div>
+      <div class="field"><label class="fl">Longitude</label><input id="f-lng" type="number" step="any" value="${p.lng??''}"></div>
+      <button class="btn sm" type="button" id="geoBtn" style="margin-bottom:0">⌖ Locate</button>
+    </div><div class="geo-status" id="geoStatus"></div>
+    <div class="row2" style="margin-top:14px">
+      <div class="field"><label class="fl">Contact (phone / email)</label><input id="f-contact" value="${esc(p.contact||'')}"></div>
+      <div class="field"><label class="fl">Last Contact</label><input id="f-last" value="${esc(p.lastContact||'')}" placeholder="e.g. 0900Z today"></div>
+    </div>
+    <div class="field"><label class="fl">Movement / Itinerary</label><textarea id="f-travel" placeholder="Where they are going and when…">${esc(p.travelNotes||'')}</textarea></div>
+    <div class="field"><label class="fl">Notes</label><textarea id="f-notes">${esc(p.notes||'')}</textarea></div>
+  `,[
+    {label:'Cancel',cls:'btn ghost',fn:closeDrawer},
+    {label:'Save',cls:'btn primary',fn:async()=>{
+      const name=$('#f-name').value.trim(); if(!name){AEGIS.flash('Name required');return;}
+      const lat=parseFloat($('#f-lat').value), lng=parseFloat($('#f-lng').value);
+      const rec={ id:p.id||undefined, name, role:$('#f-role').value.trim(), org:$('#f-org').value.trim(),
+        status:$('#f-status').value, currentLocation:$('#f-loc').value.trim(), country:$('#f-country').value.trim(),
+        lat:isNaN(lat)?null:lat, lng:isNaN(lng)?null:lng, contact:$('#f-contact').value.trim(),
+        lastContact:$('#f-last').value.trim(), travelNotes:$('#f-travel').value.trim(), notes:$('#f-notes').value.trim() };
+      await AEGIS.store.put('personnel',rec); closeDrawer(); AEGIS.flash('Personnel saved'); reload();
+    }}
+  ]);
+  wireGeo();
+}
+$('#btn-new-person').onclick=()=>personForm();
+
+/* ---------- regions ---------- */
+function renderRegions(){
+  let rows=[...REGIONS].sort((a,b)=>(b.tier||0)-(a.tier||0)||(a.name||'').localeCompare(b.name||''));
+  $('#regionTable').innerHTML=rows.length?`<table>
+    <thead><tr><th>Region</th><th>Tier</th><th>Guidance</th><th>Personnel Present</th><th>Updated</th></tr></thead>
+    <tbody>${rows.map(r=>{
+      const present=PEOPLE.filter(p=>p.country&&r.name&&p.country.toLowerCase()===r.name.toLowerCase()).length;
+      return `<tr class="clickrow" data-region="${r.id}">
+      <td><b style="font-weight:500">${esc(r.name)}</b></td>
+      <td><span class="tier tier-${r.tier||1}">Tier ${r.tier||1}</span></td>
+      <td style="font-size:12px;color:var(--ink-dim)">${esc(TIERS[r.tier]||'')}</td>
+      <td style="font-family:var(--mono);font-size:12px">${present||''}</td>
+      <td style="font-family:var(--mono);font-size:10px;color:var(--ink-faint)">${esc(r.updated||'—')}</td>
+    </tr>`;}).join('')}</tbody></table>`:'<div class="empty"><span>🗺</span>No regions defined. Add the countries/areas you operate in.</div>';
+  $$('#regionTable [data-region]').forEach(r=>r.onclick=()=>regionForm(REGIONS.find(x=>x.id===r.dataset.region)));
+}
+function regionForm(r){
+  r=r||{};
+  openDrawer(r.id?'Edit Region':'Add Region',`
+    <div class="field"><label class="fl">Region / Country name</label><input id="f-name" value="${esc(r.name||'')}" placeholder="e.g. Kenya"></div>
+    <div class="field"><label class="fl">Risk Tier</label><select id="f-tier">${[1,2,3,4].map(n=>`<option value="${n}" ${(+r.tier||1)===n?'selected':''}>Tier ${n} — ${TIERS[n]}</option>`).join('')}</select></div>
+    <div class="geo-row">
+      <div class="field"><label class="fl">Latitude (center)</label><input id="f-lat" type="number" step="any" value="${r.lat??''}"></div>
+      <div class="field"><label class="fl">Longitude (center)</label><input id="f-lng" type="number" step="any" value="${r.lng??''}"></div>
+      <button class="btn sm" type="button" id="geoBtn" style="margin-bottom:0">⌖ Locate</button>
+    </div><div class="geo-status" id="geoStatus"></div>
+    <div class="field" style="margin-top:14px"><label class="fl">Updated</label><input id="f-updated" value="${esc(r.updated||new Date().toISOString().slice(0,10))}"></div>
+    <div class="field"><label class="fl">Notes / Rationale</label><textarea id="f-notes">${esc(r.notes||'')}</textarea></div>
+    ${r.id?'':''}
+  `,[
+    {label:'Cancel',cls:'btn ghost',fn:closeDrawer},
+    ...(r.id?[{label:'Delete',cls:'btn danger',fn:async()=>{ if(confirm('Delete this region?')){ await AEGIS.store.remove('regions',r.id); closeDrawer(); AEGIS.flash('Region deleted'); reload(); } }}]:[]),
+    {label:'Save',cls:'btn primary',fn:async()=>{
+      const name=$('#f-name').value.trim(); if(!name){AEGIS.flash('Name required');return;}
+      const lat=parseFloat($('#f-lat').value), lng=parseFloat($('#f-lng').value);
+      const rec={ id:r.id||undefined, name, tier:+$('#f-tier').value, lat:isNaN(lat)?null:lat, lng:isNaN(lng)?null:lng,
+        updated:$('#f-updated').value.trim(), notes:$('#f-notes').value.trim() };
+      await AEGIS.store.put('regions',rec); closeDrawer(); AEGIS.flash('Region saved'); reload();
+    }}
+  ]);
+  wireGeo();
+}
+$('#btn-new-region').onclick=()=>regionForm();
+
+/* ---------- geocode (Nominatim) ---------- */
+function wireGeo(){
+  const btn=document.getElementById('geoBtn'); if(!btn)return;
+  btn.onclick=async()=>{
+    const q=(document.getElementById('f-loc')?.value || document.getElementById('f-country')?.value || document.getElementById('f-name')?.value || '').trim();
+    const st=document.getElementById('geoStatus');
+    if(!q){ st.textContent='Enter a location/country first.'; return; }
+    st.textContent='Searching…'; st.style.color='var(--ink-faint)';
+    try{
+      const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(q),{headers:{'Accept':'application/json'}});
+      const d=await r.json();
+      if(d&&d.length){ document.getElementById('f-lat').value=parseFloat(d[0].lat).toFixed(6); document.getElementById('f-lng').value=parseFloat(d[0].lon).toFixed(6);
+        st.style.color='var(--green)'; st.textContent='✓ '+d[0].display_name.slice(0,60); }
+      else { st.style.color='var(--red)'; st.textContent='Not found — enter coordinates manually.'; }
+    }catch(e){ st.style.color='var(--red)'; st.textContent='Lookup failed (offline?) — enter coordinates manually.'; }
+  };
+}
+
+/* ---------- map ---------- */
+function initMap(){
+  if(typeof L==='undefined'){ $('#map').innerHTML='<div class="empty">MAP LIBRARY UNAVAILABLE OFFLINE</div>'; return; }
+  if(mapReady){ MAP.invalidateSize(); renderMap(); return; }
+  MAP=L.map('map',{zoomControl:true}).setView([25,15],2);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/'+(document.documentElement.dataset.theme==='light'?'light_all':'dark_all')+'/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:19,attribution:'© OpenStreetMap © CARTO'}).addTo(MAP);
+  layerThreats=L.layerGroup().addTo(MAP); layerRegions=L.layerGroup().addTo(MAP); layerPeople=L.layerGroup().addTo(MAP);
+  MAP.on('mousemove',e=>{ $('#mapHud').textContent=`LAT ${e.latlng.lat.toFixed(4)}, LON ${e.latlng.lng.toFixed(4)}`; });
+  $$('.layer-ctl button').forEach(b=>b.onclick=()=>{ layerOn[b.dataset.layer]=!layerOn[b.dataset.layer]; b.classList.toggle('active',layerOn[b.dataset.layer]); renderMap(); });
+  mapReady=true; renderMap();
+}
+function pin(color,letter){ return L.divIcon({className:'',html:`<div class="threat-pin" style="background:${color}"><span>${letter}</span></div>`,iconSize:[24,24],iconAnchor:[12,22],popupAnchor:[0,-20]}); }
+function renderMap(){
+  if(!mapReady)return;
+  layerThreats.clearLayers(); layerPeople.clearLayers(); layerRegions.clearLayers();
+  const pts=[];
+  if(layerOn.regions) REGIONS.filter(r=>r.lat!=null).forEach(r=>{
+    const col=[null,SEV_COLOR.Low,SEV_COLOR.Elevated,SEV_COLOR.High,SEV_COLOR.Critical][r.tier]||SEV_COLOR.Low;
+    const c=L.circle([r.lat,r.lng],{radius:160000,color:col,weight:1,fillColor:col,fillOpacity:.08});
+    c.bindPopup(`<b>${esc(r.name)}</b><br>Tier ${r.tier} — ${esc(TIERS[r.tier]||'')}`); layerRegions.addLayer(c); pts.push([r.lat,r.lng]);
+  });
+  if(layerOn.threats) THREATS.filter(t=>t.lat!=null).forEach(t=>{
+    const m=L.marker([t.lat,t.lng],{icon:pin(SEV_COLOR[t.severity]||'#888',(t.category||'?')[0])});
+    m.bindPopup(`<b>${esc(t.title)}</b><br>${esc(t.category)} · ${esc(t.severity)}<br>${esc(t.location||'')}${t.dtg?'<br><span style="font-family:monospace;font-size:10px">'+esc(t.dtg)+'</span>':''}`);
+    layerThreats.addLayer(m); pts.push([t.lat,t.lng]);
+  });
+  if(layerOn.people) PEOPLE.filter(p=>p.lat!=null).forEach(p=>{
+    const col=PSTATUS_COLOR[p.status]||'#8b97a6';
+    const m=L.circleMarker([p.lat,p.lng],{radius:7,color:'#070a0f',weight:2,fillColor:col,fillOpacity:.95});
+    m.bindPopup(`<b>${esc(p.name)}</b><br>${esc(p.role||'')}<br>${esc(p.status||'')} · ${esc(p.currentLocation||p.country||'')}`);
+    layerPeople.addLayer(m); pts.push([p.lat,p.lng]);
+  });
+  if(pts.length) MAP.fitBounds(pts,{padding:[50,50],maxZoom:8});
+}
+$('#btn-fit').onclick=()=>{ const pts=[...THREATS,...PEOPLE,...REGIONS].filter(x=>x.lat!=null).map(x=>[x.lat,x.lng]); if(pts.length)MAP.fitBounds(pts,{padding:[50,50],maxZoom:8}); else AEGIS.flash('No geolocated items yet'); };
+
+/* ---------- drawer ---------- */
+function openDrawer(title,body,actions){
+  $('#drawerTitle').textContent=title; $('#drawerBody').innerHTML=body;
+  const f=$('#drawerFoot'); f.innerHTML='';
+  (actions||[]).forEach(a=>{ const b=document.createElement('button'); b.className=a.cls; b.textContent=a.label; b.onclick=a.fn; f.appendChild(b); });
+  $('#scrim').classList.add('open'); $('#drawer').classList.add('open');
+}
+function closeDrawer(){ $('#scrim').classList.remove('open'); $('#drawer').classList.remove('open'); }
+$('#drawerX').onclick=closeDrawer; $('#scrim').onclick=closeDrawer;
+
+/* ---------- boot ---------- */
+(async()=>{
+  if(!(await AEGIS.auth.require())) return;
+  AEGIS.applyChrome(); AEGIS.startDtg();
+  await reload();
+})();
+</script>
+</body>
+</html>

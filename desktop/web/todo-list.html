@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script>try{var __t=localStorage.getItem('aegis.theme');if(__t)document.documentElement.dataset.theme=__t}catch(e){}</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Task List</title>
+<link rel="icon" type="image/png" href="assets/favicon.png"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Spline+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f4f0e6;
+    --card: #fbf9f3;
+    --ink: #2b2723;
+    --muted: #8a8276;
+    --line: #e2dccd;
+    --accent: #1f6f63;
+    --accent-soft: #e0ece9;
+    --done: #b3ab9c;
+    --shadow: 0 1px 2px rgba(43,39,35,.06), 0 8px 24px rgba(43,39,35,.06);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Spline Sans', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.5;
+    min-height: 100vh;
+    padding: 2.5rem 1rem 5rem;
+    background-image: radial-gradient(circle at 1px 1px, rgba(43,39,35,.04) 1px, transparent 0);
+    background-size: 22px 22px;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; }
+  header { margin-bottom: 1.75rem; }
+  h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 2.5rem;
+    letter-spacing: -0.01em;
+    line-height: 1.05;
+  }
+  .sub { color: var(--muted); font-size: .95rem; margin-top: .35rem; }
+
+  .progress-wrap { margin: 1.25rem 0 1.75rem; }
+  .progress-bar {
+    height: 7px; background: var(--line); border-radius: 99px; overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%; width: 0%; background: var(--accent);
+    border-radius: 99px; transition: width .35s ease;
+  }
+  .progress-label { font-size: .82rem; color: var(--muted); margin-top: .5rem; }
+
+  .add-row { display: flex; gap: .6rem; margin-bottom: 1.5rem; }
+  input[type="text"] {
+    flex: 1; font-family: inherit; font-size: 1rem; color: var(--ink);
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 10px; padding: .75rem .9rem; outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  input[type="text"]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  input[type="text"]::placeholder { color: var(--muted); }
+
+  .btn {
+    font-family: inherit; font-size: .95rem; font-weight: 500; cursor: pointer;
+    border: none; border-radius: 10px; padding: .75rem 1.1rem;
+    background: var(--accent); color: #fff; transition: transform .08s, filter .15s;
+    white-space: nowrap;
+  }
+  .btn:hover { filter: brightness(1.07); }
+  .btn:active { transform: translateY(1px); }
+
+  ul.tasks { list-style: none; display: flex; flex-direction: column; gap: .7rem; }
+  ul.subtasks { list-style: none; margin: .6rem 0 .2rem 0; display: flex; flex-direction: column; gap: .45rem; }
+
+  .task {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 14px; padding: .85rem .95rem; box-shadow: var(--shadow);
+  }
+  .row { display: flex; align-items: flex-start; gap: .7rem; }
+
+  .check {
+    appearance: none; -webkit-appearance: none; flex: none;
+    width: 21px; height: 21px; margin-top: 1px; border: 2px solid var(--line);
+    border-radius: 6px; cursor: pointer; position: relative; background: #fff;
+    transition: background .15s, border-color .15s;
+  }
+  .check:checked { background: var(--accent); border-color: var(--accent); }
+  .check:checked::after {
+    content: ""; position: absolute; left: 6px; top: 2px;
+    width: 5px; height: 10px; border: solid #fff; border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+  .sub-check { width: 18px; height: 18px; border-radius: 5px; }
+  .sub-check:checked::after { left: 5px; top: 2px; width: 4px; height: 8px; }
+
+  .label { flex: 1; font-size: 1.02rem; word-break: break-word; padding-top: 1px; }
+  .subtasks .label { font-size: .94rem; color: #4a443c; }
+  .done .label { color: var(--done); text-decoration: line-through; }
+
+  .actions { display: flex; gap: .25rem; flex: none; }
+  .icon-btn {
+    border: none; background: transparent; cursor: pointer; color: var(--muted);
+    width: 28px; height: 28px; border-radius: 7px; font-size: 1.05rem; line-height: 1;
+    display: grid; place-items: center; transition: background .15s, color .15s;
+  }
+  .icon-btn:hover { background: var(--accent-soft); color: var(--accent); }
+  .icon-btn.del:hover { background: #f6e3e0; color: #b4493c; }
+
+  .add-sub {
+    margin-left: 2.3rem; margin-top: .55rem; display: flex; gap: .45rem;
+  }
+  .add-sub input { font-size: .9rem; padding: .5rem .7rem; }
+  .add-sub .btn { font-size: .85rem; padding: .5rem .85rem; background: var(--ink); }
+
+  .meta { margin-left: 2.3rem; font-size: .78rem; color: var(--muted); margin-top: .3rem; }
+
+  .empty {
+    text-align: center; color: var(--muted); padding: 3rem 1rem;
+    font-family: 'Fraunces', serif; font-style: italic; font-size: 1.15rem;
+  }
+  .footer-actions { margin-top: 1.5rem; display: flex; justify-content: space-between; align-items: center; }
+  .clear-link {
+    background: none; border: none; color: var(--muted); cursor: pointer;
+    font-family: inherit; font-size: .85rem; text-decoration: underline; text-underline-offset: 3px;
+  }
+  .clear-link:hover { color: #b4493c; }
+  .note { font-size: .78rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<!-- AEGIS Suite return control (injected) -->
+<a href="index.html" id="aegis-home" title="Return to AEGIS Suite">&#9664; SUITE</a>
+<style>#aegis-home{position:fixed;left:14px;bottom:14px;z-index:99999;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.12em;text-decoration:none;background:rgba(10,14,20,.92);color:#cfe9ee;border:1px solid #3fb6c4;border-radius:8px;padding:7px 12px;box-shadow:0 6px 20px rgba(0,0,0,.45);backdrop-filter:blur(6px);transition:.15s}#aegis-home:hover{background:#3fb6c4;color:#06181b;transform:translateY(-1px)}@media print{#aegis-home{display:none!important}}</style>
+<div class="wrap">
+  <header>
+    <h1>Task List</h1>
+    <p class="sub" id="dateline"></p>
+  </header>
+
+  <div class="progress-wrap">
+    <div class="progress-bar"><div class="progress-fill" id="fill"></div></div>
+    <div class="progress-label" id="plabel">Nothing yet — add your first task below.</div>
+  </div>
+
+  <div class="add-row">
+    <input type="text" id="newTask" placeholder="Add a task and press Enter…" autocomplete="off">
+    <button class="btn" id="addBtn">Add</button>
+  </div>
+
+  <ul class="tasks" id="list"></ul>
+
+  <div class="footer-actions">
+    <span class="note" id="saveNote"></span>
+    <button class="clear-link" id="clearDone">Clear completed</button>
+  </div>
+</div>
+
+<script src="assets/aegis-common.js"></script>
+<script src="assets/aegis-i18n.js"></script>
+<script>
+(async function () {
+  // Gate behind the suite login; in secure mode the data API needs a session.
+  if (!(await AEGIS.auth.require())) return;
+  await AEGIS.ready;
+
+  // ---- storage: suite store — AEGIS database in secure mode, browser in local mode ----
+  function note(t) {
+    var n = document.getElementById("saveNote");
+    if (!n) return;
+    n.textContent = t;
+    clearTimeout(note._t);
+    note._t = setTimeout(function(){ n.textContent = ""; }, 1600);
+  }
+  function save() {
+    AEGIS.store.replaceAll('tasks', tasks)
+      .then(function(){ note(AEGIS.MODE === 'secure' ? "Saved to database" : "Saved locally"); })
+      .catch(function(){ note("Save failed — check your connection"); });
+  }
+
+  var tasks = await AEGIS.store.list('tasks');
+  var uid = function () { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); };
+
+  // ---- date line ----
+  document.getElementById("dateline").textContent =
+    new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+
+  // ---- render ----
+  var list = document.getElementById("list");
+
+  function countAll() {
+    var total = 0, done = 0;
+    tasks.forEach(function (t) {
+      total++; if (t.done) done++;
+      (t.subs || []).forEach(function (s) { total++; if (s.done) done++; });
+    });
+    return { total: total, done: done };
+  }
+
+  function updateProgress() {
+    var c = countAll();
+    var pct = c.total ? Math.round((c.done / c.total) * 100) : 0;
+    document.getElementById("fill").style.width = pct + "%";
+    var label = document.getElementById("plabel");
+    label.textContent = c.total
+      ? c.done + " of " + c.total + " complete · " + pct + "%"
+      : "Nothing yet — add your first task below.";
+  }
+
+  function makeCheck(checked, isSub) {
+    var c = document.createElement("input");
+    c.type = "checkbox";
+    c.className = "check" + (isSub ? " sub-check" : "");
+    c.checked = checked;
+    return c;
+  }
+
+  function iconBtn(symbol, cls, title) {
+    var b = document.createElement("button");
+    b.className = "icon-btn" + (cls ? " " + cls : "");
+    b.textContent = symbol;
+    b.title = title;
+    return b;
+  }
+
+  function render() {
+    list.innerHTML = "";
+    if (!tasks.length) {
+      var e = document.createElement("li");
+      e.className = "empty";
+      e.textContent = "A clean slate.";
+      list.appendChild(e);
+      updateProgress();
+      return;
+    }
+
+    tasks.forEach(function (task) {
+      var li = document.createElement("li");
+      li.className = "task";
+
+      var row = document.createElement("div");
+      row.className = "row" + (task.done ? " done" : "");
+
+      var chk = makeCheck(task.done, false);
+      chk.onchange = function () { task.done = chk.checked; save(); render(); };
+
+      var label = document.createElement("div");
+      label.className = "label";
+      label.textContent = task.text;
+      label.title = "Double-click to edit";
+      label.ondblclick = function () { editInline(label, task, "text"); };
+
+      var actions = document.createElement("div");
+      actions.className = "actions";
+
+      var addSubBtn = iconBtn("+", "", "Add subtask");
+      addSubBtn.onclick = function () { toggleSubInput(li, task); };
+
+      var delBtn = iconBtn("×", "del", "Delete task");
+      delBtn.onclick = function () {
+        tasks = tasks.filter(function (t) { return t.id !== task.id; });
+        save(); render();
+      };
+
+      actions.appendChild(addSubBtn);
+      actions.appendChild(delBtn);
+      row.appendChild(chk);
+      row.appendChild(label);
+      row.appendChild(actions);
+      li.appendChild(row);
+
+      // subtasks
+      if (task.subs && task.subs.length) {
+        var subUl = document.createElement("ul");
+        subUl.className = "subtasks";
+        task.subs.forEach(function (sub) {
+          var sli = document.createElement("li");
+          var srow = document.createElement("div");
+          srow.className = "row" + (sub.done ? " done" : "");
+
+          var schk = makeCheck(sub.done, true);
+          schk.onchange = function () { sub.done = schk.checked; save(); render(); };
+
+          var slabel = document.createElement("div");
+          slabel.className = "label";
+          slabel.textContent = sub.text;
+          slabel.title = "Double-click to edit";
+          slabel.ondblclick = function () { editInline(slabel, sub, "text"); };
+
+          var sdel = iconBtn("×", "del", "Delete subtask");
+          sdel.onclick = function () {
+            task.subs = task.subs.filter(function (s) { return s.id !== sub.id; });
+            save(); render();
+          };
+          var sactions = document.createElement("div");
+          sactions.className = "actions";
+          sactions.appendChild(sdel);
+
+          srow.appendChild(schk);
+          srow.appendChild(slabel);
+          srow.appendChild(sactions);
+          sli.appendChild(srow);
+          subUl.appendChild(sli);
+        });
+        li.appendChild(subUl);
+      }
+
+      list.appendChild(li);
+    });
+    updateProgress();
+  }
+
+  function toggleSubInput(li, task) {
+    var existing = li.querySelector(".add-sub");
+    if (existing) { existing.remove(); return; }
+    var box = document.createElement("div");
+    box.className = "add-sub";
+    var inp = document.createElement("input");
+    inp.type = "text";
+    inp.placeholder = "Subtask…";
+    var b = document.createElement("button");
+    b.className = "btn";
+    b.textContent = "Add";
+    function commit() {
+      var v = inp.value.trim();
+      if (!v) return;
+      task.subs = task.subs || [];
+      task.subs.push({ id: uid(), text: v, done: false });
+      save(); render();
+    }
+    b.onclick = commit;
+    inp.onkeydown = function (ev) { if (ev.key === "Enter") commit(); if (ev.key === "Escape") box.remove(); };
+    box.appendChild(inp);
+    box.appendChild(b);
+    li.appendChild(box);
+    inp.focus();
+  }
+
+  function editInline(labelEl, obj) {
+    var inp = document.createElement("input");
+    inp.type = "text";
+    inp.value = obj.text;
+    inp.style.flex = "1";
+    inp.style.fontSize = labelEl.classList.contains("label") ? "1rem" : ".94rem";
+    labelEl.replaceWith(inp);
+    inp.focus();
+    inp.setSelectionRange(inp.value.length, inp.value.length);
+    function commit() {
+      var v = inp.value.trim();
+      if (v) obj.text = v;
+      save(); render();
+    }
+    inp.onkeydown = function (ev) { if (ev.key === "Enter") commit(); if (ev.key === "Escape") render(); };
+    inp.onblur = commit;
+  }
+
+  // ---- add task ----
+  var input = document.getElementById("newTask");
+  function addTask() {
+    var v = input.value.trim();
+    if (!v) return;
+    tasks.push({ id: uid(), text: v, done: false, subs: [] });
+    input.value = "";
+    save(); render();
+    input.focus();
+  }
+  document.getElementById("addBtn").onclick = addTask;
+  input.onkeydown = function (ev) { if (ev.key === "Enter") addTask(); };
+
+  // ---- clear completed ----
+  document.getElementById("clearDone").onclick = function () {
+    tasks = tasks.filter(function (t) { return !t.done; });
+    tasks.forEach(function (t) {
+      if (t.subs) t.subs = t.subs.filter(function (s) { return !s.done; });
+    });
+    save(); render();
+  };
+
+  render();
+})();
+</script>
+</body>
+</html>

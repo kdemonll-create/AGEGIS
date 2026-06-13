@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script>try{var __t=localStorage.getItem('aegis.theme');if(__t)document.documentElement.dataset.theme=__t}catch(e){}</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trip Command — Itinerary · Lodging · Budget · GEOINT</title>
+<link rel="icon" type="image/png" href="assets/favicon.png"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Chivo:wght@400;600;800;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#121821; --panel2:#0e141c; --border:#1f2733; --border2:#2a3543;
+    --text:#e6edf3; --muted:#8a97a8; --muted2:#5d6b7d;
+    --amber:#f0a202; --cyan:#39c0ed; --green:#46d369; --violet:#a78bfa; --red:#f85149; --pink:#ff7b9c;
+    --accent:var(--amber);
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+    --sans:'Chivo',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:var(--sans); background:var(--bg); color:var(--text);
+    background-image:
+      linear-gradient(rgba(57,192,237,.025) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(57,192,237,.025) 1px,transparent 1px);
+    background-size:34px 34px;
+    min-height:100vh; font-size:14px; line-height:1.5;
+  }
+  /* ---- Header ---- */
+  header{
+    background:linear-gradient(180deg,#0e141c,#0b0f14);
+    border-bottom:1px solid var(--border2); padding:14px 20px;
+    display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+    position:sticky; top:0; z-index:1500;
+  }
+  .brand{display:flex; align-items:center; gap:12px}
+  .brand .logo{
+    width:38px; height:38px; border:1.5px solid var(--amber); border-radius:6px;
+    display:grid; place-items:center; color:var(--amber); font-weight:900; font-size:18px;
+    box-shadow:0 0 14px rgba(240,162,2,.25); position:relative; overflow:hidden;
+  }
+  .brand .logo::after{content:"";position:absolute;inset:0;background:
+    linear-gradient(transparent 48%,rgba(240,162,2,.35) 50%,transparent 52%);
+    background-size:100% 6px; animation:scan 3s linear infinite;}
+  @keyframes scan{from{background-position:0 -20px}to{background-position:0 20px}}
+  .brand h1{font-size:17px; font-weight:900; letter-spacing:.5px}
+  .brand .sub{font-family:var(--mono); font-size:10px; color:var(--muted); letter-spacing:2px; text-transform:uppercase}
+  .trip-pick{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+  .trip-pick select{
+    background:var(--panel); color:var(--text); border:1px solid var(--border2); border-radius:6px;
+    padding:8px 12px; font-family:var(--mono); font-size:12px; min-width:200px;
+  }
+  /* ---- Buttons ---- */
+  button{font-family:var(--sans); cursor:pointer; border:none; transition:.15s}
+  .btn{
+    background:var(--panel); color:var(--text); border:1px solid var(--border2);
+    border-radius:6px; padding:8px 14px; font-size:13px; font-weight:600; display:inline-flex; align-items:center; gap:6px;
+  }
+  .btn:hover{border-color:var(--amber); color:var(--amber)}
+  .btn.primary{background:var(--amber); color:#1a1205; border-color:var(--amber)}
+  .btn.primary:hover{filter:brightness(1.1); color:#1a1205}
+  .btn.ghost{background:transparent}
+  .btn.danger:hover{border-color:var(--red); color:var(--red)}
+  .btn.sm{padding:5px 10px; font-size:12px}
+  /* ---- Tabs ---- */
+  nav.tabs{display:flex; gap:2px; padding:0 20px; background:var(--panel2); border-bottom:1px solid var(--border2); overflow-x:auto}
+  nav.tabs button{
+    background:transparent; color:var(--muted); padding:13px 18px; font-size:13px; font-weight:700;
+    border-bottom:2px solid transparent; letter-spacing:.4px; white-space:nowrap; text-transform:uppercase;
+    font-family:var(--mono); font-size:12px;
+  }
+  nav.tabs button:hover{color:var(--text)}
+  nav.tabs button.active{color:var(--amber); border-bottom-color:var(--amber)}
+  /* ---- Layout ---- */
+  main{padding:22px; max-width:1280px; margin:0 auto}
+  .view{display:none; animation:fade .25s ease}
+  .view.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .row{display:flex; gap:14px; align-items:center; justify-content:space-between; margin-bottom:18px; flex-wrap:wrap}
+  h2.section{font-size:20px; font-weight:900; letter-spacing:.3px}
+  h2.section small{font-family:var(--mono); font-size:11px; color:var(--muted); font-weight:400; display:block; letter-spacing:2px; text-transform:uppercase; margin-top:2px}
+  /* ---- Cards ---- */
+  .card{
+    background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:16px; margin-bottom:12px;
+    position:relative;
+  }
+  .card .corner{position:absolute; top:-1px; right:-1px; width:14px; height:14px; border-top:2px solid var(--amber); border-right:2px solid var(--amber); border-radius:0 8px 0 0}
+  .card-head{display:flex; justify-content:space-between; align-items:flex-start; gap:10px}
+  .card h3{font-size:15px; font-weight:800}
+  .tag{font-family:var(--mono); font-size:10px; padding:3px 8px; border-radius:4px; text-transform:uppercase; letter-spacing:1px; font-weight:600; border:1px solid}
+  .meta{font-family:var(--mono); font-size:12px; color:var(--muted); margin-top:6px; display:flex; flex-wrap:wrap; gap:6px 16px}
+  .meta b{color:var(--text); font-weight:600}
+  .coord{color:var(--cyan)}
+  .notes{margin-top:8px; color:var(--muted); font-size:13px; border-left:2px solid var(--border2); padding-left:10px}
+  .empty{text-align:center; color:var(--muted); padding:48px 20px; font-family:var(--mono); font-size:13px; border:1px dashed var(--border2); border-radius:10px}
+  .empty span{font-size:30px; display:block; margin-bottom:10px; opacity:.5}
+  /* ---- Day group ---- */
+  .day-head{display:flex; align-items:center; gap:10px; margin:22px 0 10px; padding-bottom:6px; border-bottom:1px solid var(--border2)}
+  .day-head .d{font-family:var(--mono); color:var(--amber); font-weight:600; font-size:13px}
+  .day-head .dn{font-weight:800; font-size:15px}
+  .day-head .dc{margin-left:auto; font-family:var(--mono); font-size:12px; color:var(--green)}
+  .timeline{border-left:2px solid var(--border2); margin-left:8px; padding-left:18px}
+  .tl-item{position:relative; margin-bottom:10px}
+  .tl-item::before{content:"";position:absolute; left:-25px; top:6px; width:10px; height:10px; border-radius:50%; background:var(--amber); box-shadow:0 0 0 3px var(--bg)}
+  .tl-item .time{font-family:var(--mono); font-size:12px; color:var(--cyan)}
+  /* ---- Forms / modal ---- */
+  .modal-bg{position:fixed; inset:0; background:rgba(0,0,0,.72); display:none; z-index:3000; align-items:flex-start; justify-content:center; overflow-y:auto; padding:40px 16px}
+  .modal-bg.show{display:flex}
+  .modal{background:var(--panel); border:1px solid var(--border2); border-radius:12px; width:100%; max-width:560px; box-shadow:0 24px 60px rgba(0,0,0,.6)}
+  .modal-head{padding:16px 20px; border-bottom:1px solid var(--border2); display:flex; justify-content:space-between; align-items:center}
+  .modal-head h3{font-size:16px; font-weight:800}
+  .modal-body{padding:20px; max-height:70vh; overflow-y:auto}
+  .modal-foot{padding:14px 20px; border-top:1px solid var(--border2); display:flex; justify-content:flex-end; gap:10px}
+  .field{margin-bottom:14px}
+  .field label{display:block; font-family:var(--mono); font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px}
+  .field input,.field select,.field textarea{
+    width:100%; background:var(--panel2); border:1px solid var(--border2); color:var(--text);
+    border-radius:6px; padding:9px 11px; font-family:var(--sans); font-size:14px;
+  }
+  .field input:focus,.field select:focus,.field textarea:focus{outline:none; border-color:var(--amber)}
+  .field textarea{font-family:var(--sans); resize:vertical; min-height:60px}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+  .geo-row{display:flex; gap:8px; align-items:flex-end}
+  .geo-row .field{flex:1; margin-bottom:0}
+  .geo-status{font-family:var(--mono); font-size:11px; color:var(--muted); margin-top:6px; min-height:14px}
+  /* ---- Stats / budget ---- */
+  .stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:20px}
+  .stat{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:16px; position:relative; overflow:hidden}
+  .stat::before{content:"";position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--accent)}
+  .stat .lab{font-family:var(--mono); font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px}
+  .stat .val{font-size:24px; font-weight:900; margin-top:6px; font-family:var(--mono)}
+  .stat.green::before{background:var(--green)} .stat.green .val{color:var(--green)}
+  .stat.red::before{background:var(--red)} .stat.red .val{color:var(--red)}
+  .stat.cyan::before{background:var(--cyan)} .stat.cyan .val{color:var(--cyan)}
+  .stat.amber::before{background:var(--amber)} .stat.amber .val{color:var(--amber)}
+  .bar-row{margin-bottom:14px}
+  .bar-row .bl{display:flex; justify-content:space-between; font-size:13px; margin-bottom:5px; font-family:var(--mono)}
+  .bar-row .bl .cat{color:var(--text); font-weight:600}
+  .bar-row .bl .am{color:var(--muted)}
+  .bar-track{height:10px; background:var(--panel2); border-radius:5px; overflow:hidden; border:1px solid var(--border); position:relative}
+  .bar-plan{position:absolute; inset:0; background:repeating-linear-gradient(45deg,var(--border2),var(--border2) 4px,transparent 4px,transparent 8px)}
+  .bar-fill{height:100%; border-radius:5px; position:relative; transition:width .5s}
+  /* ---- Map ---- */
+  #mapWrap{position:relative; border:1px solid var(--border2); border-radius:10px; overflow:hidden}
+  #map{height:560px; width:100%; background:#0b0f14}
+  .map-hud{
+    position:absolute; bottom:12px; left:12px; z-index:1000; background:rgba(11,15,20,.85);
+    border:1px solid var(--border2); border-radius:6px; padding:8px 12px; font-family:var(--mono);
+    font-size:11px; color:var(--cyan); backdrop-filter:blur(4px); pointer-events:none;
+  }
+  .map-legend{
+    position:absolute; top:12px; right:12px; z-index:1000; background:rgba(11,15,20,.88);
+    border:1px solid var(--border2); border-radius:6px; padding:10px 12px; font-family:var(--mono); font-size:11px; backdrop-filter:blur(4px);
+  }
+  .map-legend .li{display:flex; align-items:center; gap:7px; margin:3px 0}
+  .map-legend .dot{width:10px; height:10px; border-radius:50%}
+  .layer-ctl{position:absolute; top:12px; left:12px; z-index:1000; display:flex; gap:4px; background:rgba(11,15,20,.88); border:1px solid var(--border2); border-radius:6px; padding:4px; backdrop-filter:blur(4px)}
+  .layer-ctl button{background:transparent; color:var(--muted); font-family:var(--mono); font-size:11px; padding:5px 9px; border-radius:4px}
+  .layer-ctl button.active{background:var(--amber); color:#1a1205; font-weight:700}
+  .leaflet-popup-content-wrapper{background:var(--panel); color:var(--text); border:1px solid var(--border2); border-radius:8px}
+  .leaflet-popup-tip{background:var(--panel); border:1px solid var(--border2)}
+  .leaflet-popup-content{font-family:var(--sans); margin:12px 14px}
+  .leaflet-popup-content b{color:var(--amber)}
+  .leaflet-container{font-family:var(--mono)}
+  .pin{display:grid; place-items:center; width:26px; height:26px; border-radius:50% 50% 50% 0; transform:rotate(-45deg); border:2px solid #0b0f14; box-shadow:0 2px 6px rgba(0,0,0,.5); font-size:12px; font-weight:900}
+  .pin span{transform:rotate(45deg); color:#0b0f14}
+  /* ---- misc ---- */
+  .toolbar{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px}
+  .toolbar .sp{flex:1}
+  .pill{font-family:var(--mono); font-size:11px; color:var(--muted); border:1px solid var(--border2); padding:4px 9px; border-radius:20px}
+  .item-actions{display:flex; gap:6px}
+  .icon-btn{background:transparent; border:1px solid var(--border2); border-radius:5px; padding:5px 9px; color:var(--muted); font-size:12px; font-family:var(--mono)}
+  .icon-btn:hover{color:var(--amber); border-color:var(--amber)}
+  .hint{font-family:var(--mono); font-size:11px; color:var(--muted2); margin-top:4px}
+  @media print{
+    body{background:#fff; color:#000; background-image:none}
+    header,nav.tabs,.toolbar,.item-actions,.map-legend,.layer-ctl,.map-hud,.btn{display:none!important}
+    .view{display:none!important} .view.print-on{display:block!important}
+    .card,.stat{border:1px solid #ccc; break-inside:avoid}
+    #map{display:none}
+    /* ---- printable trip brief ---- */
+    #view-print.print-on{padding:0!important}
+    .pb{color:#111;font-family:'Chivo',Arial,sans-serif}
+    .pb-kicker{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.2em;color:#666}
+    .pb-title{font-size:24px;margin:2px 0 4px;font-weight:900;color:#000}
+    .pb-meta{font-size:12px;color:#444;font-family:'IBM Plex Mono',monospace}
+    .pb-notes{margin:10px 0;padding:8px 10px;border-left:3px solid #999;background:#f3f3f3;font-size:12px;color:#333}
+    .pb-sec{font-size:14px;margin:18px 0 6px;padding-bottom:3px;border-bottom:2px solid #000;text-transform:uppercase;letter-spacing:.05em}
+    .pb-day{font-size:12px;margin:12px 0 4px;color:#000;font-family:'IBM Plex Mono',monospace}
+    .pb-day .pb-cost{float:right;color:#444}
+    .pb-tbl{width:100%;border-collapse:collapse;font-size:11.5px;margin-bottom:6px}
+    .pb-tbl th{text-align:left;border-bottom:1px solid #999;padding:4px 6px;font-size:9.5px;text-transform:uppercase;letter-spacing:.08em;color:#555;font-family:'IBM Plex Mono',monospace}
+    .pb-tbl td{border-bottom:1px solid #ddd;padding:5px 6px;vertical-align:top}
+    .pb-tbl tr{break-inside:avoid}
+    .pb-time{font-family:'IBM Plex Mono',monospace;color:#666;white-space:nowrap;width:54px}
+    .pb-amt{text-align:right;white-space:nowrap;font-family:'IBM Plex Mono',monospace}
+    .pb-tag{font-family:'IBM Plex Mono',monospace;font-size:9px;border:1px solid #aaa;border-radius:3px;padding:0 4px;color:#555;text-transform:uppercase}
+    .pb-sub{color:#666;font-size:10.5px}
+    .pb-empty{color:#888;font-size:11px;font-style:italic}
+    .pb-foot{margin-top:18px;padding-top:6px;border-top:1px solid #ccc;font-size:9.5px;color:#888;font-family:'IBM Plex Mono',monospace}
+  }
+
+/* ============ LIGHT THEME ============ */
+:root[data-theme="light"]{
+  --bg:#eef1f4; --panel:#ffffff; --panel2:#f2f5f8; --border:#d4dbe3; --border2:#b7c3d0;
+  --text:#1d2630; --muted:#4f5e6d; --muted2:#8392a1;
+  --amber:#9c6d10; --cyan:#0e7fa6; --green:#1d8a47; --violet:#65589f; --red:#b14437; --pink:#a05578;
+}
+:root[data-theme="light"] body{background-image:
+  linear-gradient(rgba(14,127,166,.05) 1px,transparent 1px),
+  linear-gradient(90deg,rgba(14,127,166,.05) 1px,transparent 1px)}
+[data-theme="light"] header{background:linear-gradient(180deg,#ffffff,#eef1f4)}
+[data-theme="light"] nav.tabs{background:#e8edf3}
+[data-theme="light"] .btn.primary,[data-theme="light"] .btn.primary:hover{color:#fff}
+[data-theme="light"] .layer-ctl button.active{color:#fff}
+[data-theme="light"] .map-hud,[data-theme="light"] .map-legend,[data-theme="light"] .layer-ctl{background:rgba(255,255,255,.92)}
+[data-theme="light"] .leaflet-container{background:#dfe6ec}
+</style>
+</head>
+<body>
+<!-- AEGIS Suite return control (injected) -->
+<a href="index.html" id="aegis-home" title="Return to AEGIS Suite">&#9664; SUITE</a>
+<style>#aegis-home{position:fixed;left:14px;bottom:14px;z-index:99999;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.12em;text-decoration:none;background:rgba(10,14,20,.92);color:#cfe9ee;border:1px solid #3fb6c4;border-radius:8px;padding:7px 12px;box-shadow:0 6px 20px rgba(0,0,0,.45);backdrop-filter:blur(6px);transition:.15s}#aegis-home:hover{background:#3fb6c4;color:#06181b;transform:translateY(-1px)}@media print{#aegis-home{display:none!important}}</style>
+<header>
+  <div class="brand">
+    <div class="logo">T</div>
+    <div>
+      <h1>TRIP COMMAND</h1>
+      <div class="sub">Itinerary · Lodging · Budget · GEOINT</div>
+    </div>
+  </div>
+  <div class="trip-pick">
+    <select id="tripSelect" onchange="setActiveTrip(this.value)"></select>
+    <button class="btn sm" onclick="openTripModal()">＋ Trip</button>
+    <button class="btn sm ghost" onclick="openTripModal(true)" id="editTripBtn" title="Edit current trip">✎</button>
+    <button class="btn sm ghost" onclick="exportData()" title="Backup all data to JSON">⭳ Backup</button>
+    <button class="btn sm ghost" onclick="document.getElementById('importFile').click()" title="Restore from JSON">⭱ Restore</button>
+    <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+  </div>
+</header>
+
+<nav class="tabs">
+  <button class="active" data-tab="dash" onclick="switchTab('dash')">Overview</button>
+  <button data-tab="itin" onclick="switchTab('itin')">Itinerary</button>
+  <button data-tab="hotels" onclick="switchTab('hotels')">Lodging</button>
+  <button data-tab="budget" onclick="switchTab('budget')">Budget</button>
+  <button data-tab="map" onclick="switchTab('map')">GEOINT Map</button>
+</nav>
+
+<main>
+  <!-- OVERVIEW -->
+  <section class="view active" id="view-dash">
+    <div class="row">
+      <h2 class="section">Mission Overview <small id="dashTripName">No trip selected</small></h2>
+      <button class="btn ghost" onclick="printBrief()">⎙ Print Brief</button>
+    </div>
+    <div class="stats" id="dashStats"></div>
+    <div id="dashSummary"></div>
+  </section>
+
+  <!-- ITINERARY -->
+  <section class="view" id="view-itin">
+    <div class="row">
+      <h2 class="section">Itinerary <small>Day-by-day operations</small></h2>
+      <button class="btn primary" onclick="openItinModal()">＋ Add Event</button>
+    </div>
+    <div id="itinList"></div>
+  </section>
+
+  <!-- HOTELS -->
+  <section class="view" id="view-hotels">
+    <div class="row">
+      <h2 class="section">Lodging <small>Confirmed stays</small></h2>
+      <button class="btn primary" onclick="openHotelModal()">＋ Add Lodging</button>
+    </div>
+    <div id="hotelList"></div>
+  </section>
+
+  <!-- BUDGET -->
+  <section class="view" id="view-budget">
+    <div class="row">
+      <h2 class="section">Budget <small>Planned vs. actual</small></h2>
+      <button class="btn primary" onclick="openBudgetModal()">＋ Add Line Item</button>
+    </div>
+    <div class="stats" id="budgetStats"></div>
+    <div id="budgetBars"></div>
+    <div id="budgetList" style="margin-top:18px"></div>
+  </section>
+
+  <!-- MAP -->
+  <section class="view" id="view-map">
+    <div class="row">
+      <h2 class="section">GEOINT Map <small>Geospatial operating picture</small></h2>
+      <div class="toolbar" style="margin:0">
+        <button class="btn sm" onclick="fitAll()">⊹ Fit All</button>
+        <button class="btn sm" onclick="toggleRoutes()" id="routeBtn">⤳ Routes: ON</button>
+      </div>
+    </div>
+    <div id="mapWrap">
+      <div id="map"></div>
+      <div class="layer-ctl" id="layerCtl"></div>
+      <div class="map-legend" id="mapLegend"></div>
+      <div class="map-hud" id="mapHud">LAT --.----, LON --.----</div>
+    </div>
+    <p class="hint">Tip: add coordinates to itinerary events and lodging (use the "Locate" button in each form) to plot them here. Map tiles require an internet connection; all your data stays local.</p>
+  </section>
+
+  <!-- PRINT-ONLY BRIEF -->
+  <section class="view" id="view-print"><div id="printContent"></div></section>
+</main>
+
+<!-- MODAL -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <div class="modal-head"><h3 id="modalTitle">Add</h3><button class="icon-btn" onclick="closeModal()">✕</button></div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" id="modalSave" onclick="saveModal()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="assets/aegis-common.js"></script>
+<script src="assets/aegis-i18n.js"></script>
+<script>
+/* ============ DATA LAYER (suite store) ============ */
+const DB_NAME='tripCommand';
+const STORES=['trips','itinerary','hotels','budget'];
+let db=null, state={activeTripId:null, tab:'dash', editId:null, modalKind:null, showRoutes:true};
+
+// Persistence is provided by the suite: the AEGIS database in secure mode,
+// browser storage in local mode. Trip data is shared across operators when
+// signed in to a secure server. "meta" (which trip is selected) is a per-device
+// UI preference and stays in local storage.
+async function openDB(){ await AEGIS.ready; }
+function getAll(store){ return AEGIS.store.list(store); }
+function put(store,obj){ if(!obj.id) obj.id=uid(); return AEGIS.store.put(store,obj); }
+function del(store,id){ return AEGIS.store.remove(store,id); }
+function getMeta(k){ try{ return Promise.resolve(JSON.parse(localStorage.getItem('tripcmd.meta.'+k))); }catch(e){ return Promise.resolve(null); } }
+function setMeta(k,v){ try{ localStorage.setItem('tripcmd.meta.'+k, JSON.stringify(v)); }catch(e){} return Promise.resolve(); }
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+
+/* ============ STATE / CACHE ============ */
+let cache={trips:[],itinerary:[],hotels:[],budget:[]};
+async function loadAll(){
+  cache.trips=await getAll('trips');
+  cache.itinerary=await getAll('itinerary');
+  cache.hotels=await getAll('hotels');
+  cache.budget=await getAll('budget');
+  state.activeTripId=await getMeta('activeTripId');
+  if(!state.activeTripId && cache.trips.length) state.activeTripId=cache.trips[0].id;
+}
+const activeTrip=()=>cache.trips.find(t=>t.id===state.activeTripId)||null;
+const tripItems=arr=>cache[arr].filter(x=>x.tripId===state.activeTripId);
+function curSym(){const t=activeTrip();const m={USD:'$',EUR:'€',GBP:'£',MXN:'$',CAD:'$',JPY:'¥'};return t?(m[t.currency]||'$'):'$';}
+const money=n=>curSym()+(Number(n)||0).toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:2});
+
+/* ============ NAV ============ */
+function switchTab(t){
+  state.tab=t;
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
+  document.querySelectorAll('main .view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+t).classList.add('active');
+  if(t==='map') setTimeout(initMap,60);
+  render();
+}
+async function setActiveTrip(id){state.activeTripId=id;await setMeta('activeTripId',id);render();if(state.tab==='map')renderMap();}
+
+/* ============ TRIP MODAL ============ */
+function field(label,id,type='text',val='',opts){
+  if(type==='select'){
+    return `<div class="field"><label>${label}</label><select id="${id}">`+
+      opts.map(o=>`<option ${o===val?'selected':''}>${o}</option>`).join('')+`</select></div>`;
+  }
+  if(type==='textarea') return `<div class="field"><label>${label}</label><textarea id="${id}">${val||''}</textarea></div>`;
+  return `<div class="field"><label>${label}</label><input id="${id}" type="${type}" value="${val??''}"></div>`;
+}
+function openTripModal(edit=false){
+  const t=edit?activeTrip():null;
+  if(edit&&!t){alert('No trip selected to edit.');return;}
+  state.modalKind='trip'; state.editId=edit?t.id:null;
+  document.getElementById('modalTitle').textContent=edit?'Edit Trip':'New Trip';
+  document.getElementById('modalBody').innerHTML=
+    field('Trip Name','f_name','text',t?.name)+
+    field('Destination','f_dest','text',t?.destination)+
+    `<div class="grid2">`+field('Start Date','f_start','date',t?.startDate)+field('End Date','f_end','date',t?.endDate)+`</div>`+
+    field('Currency','f_cur','select',t?.currency||'USD',['USD','EUR','GBP','MXN','CAD','JPY'])+
+    field('Notes','f_notes','textarea',t?.notes)+
+    (edit?`<button class="btn danger ghost sm" onclick="deleteTrip()" style="margin-top:6px">🗑 Delete this trip</button>`:'');
+  showModal();
+}
+async function deleteTrip(){
+  const t=activeTrip(); if(!t)return;
+  if(!confirm(`Delete "${t.name}" and all its events, lodging, and budget?`))return;
+  await del('trips',t.id);
+  for(const s of ['itinerary','hotels','budget'])
+    for(const it of cache[s].filter(x=>x.tripId===t.id)) await del(s,it.id);
+  await loadAll(); state.activeTripId=cache.trips[0]?.id||null; await setMeta('activeTripId',state.activeTripId);
+  closeModal(); render();
+}
+
+/* ============ ITINERARY MODAL ============ */
+const ITIN_TYPES=['Activity','Sightseeing','Meal','Transport','Meeting','Other'];
+function openItinModal(id){
+  if(!activeTrip()){alert('Create a trip first.');return;}
+  const it=id?cache.itinerary.find(x=>x.id===id):null;
+  state.modalKind='itinerary'; state.editId=id||null;
+  document.getElementById('modalTitle').textContent=id?'Edit Event':'Add Event';
+  document.getElementById('modalBody').innerHTML=
+    field('Title','f_title','text',it?.title)+
+    `<div class="grid2">`+field('Date','f_day','date',it?.day||activeTrip().startDate)+field('Time','f_time','time',it?.time)+`</div>`+
+    `<div class="grid2">`+field('Type','f_type','select',it?.type||'Activity',ITIN_TYPES)+field('Cost ('+curSym()+')','f_cost','number',it?.cost)+`</div>`+
+    field('Location / Address','f_loc','text',it?.location)+
+    geoBlock(it)+
+    field('Notes','f_notes','textarea',it?.notes);
+  showModal(); wireGeo();
+}
+
+/* ============ HOTEL MODAL ============ */
+function openHotelModal(id){
+  if(!activeTrip()){alert('Create a trip first.');return;}
+  const h=id?cache.hotels.find(x=>x.id===id):null;
+  state.modalKind='hotels'; state.editId=id||null;
+  document.getElementById('modalTitle').textContent=id?'Edit Lodging':'Add Lodging';
+  document.getElementById('modalBody').innerHTML=
+    field('Property Name','f_name','text',h?.name)+
+    `<div class="grid2">`+field('Check-in','f_in','date',h?.checkIn)+field('Check-out','f_out','date',h?.checkOut)+`</div>`+
+    `<div class="grid2">`+field('Total Cost ('+curSym()+')','f_cost','number',h?.cost)+field('Confirmation #','f_conf','text',h?.confirmation)+`</div>`+
+    field('Location / Address','f_loc','text',h?.location)+
+    geoBlock(h)+
+    field('Notes','f_notes','textarea',h?.notes);
+  showModal(); wireGeo();
+}
+
+/* ============ BUDGET MODAL ============ */
+const BUD_CATS=['Lodging','Transport','Food','Activities','Shopping','Insurance','Misc'];
+function openBudgetModal(id){
+  if(!activeTrip()){alert('Create a trip first.');return;}
+  const b=id?cache.budget.find(x=>x.id===id):null;
+  state.modalKind='budget'; state.editId=id||null;
+  document.getElementById('modalTitle').textContent=id?'Edit Line Item':'Add Line Item';
+  document.getElementById('modalBody').innerHTML=
+    field('Label','f_label','text',b?.label)+
+    field('Category','f_cat','select',b?.category||'Misc',BUD_CATS)+
+    `<div class="grid2">`+field('Planned ('+curSym()+')','f_plan','number',b?.planned)+field('Actual ('+curSym()+')','f_actual','number',b?.actual)+`</div>`+
+    field('Notes','f_notes','textarea',b?.notes);
+  showModal();
+}
+
+/* ============ GEO (Nominatim geocoding) ============ */
+function geoBlock(obj){
+  return `<div class="geo-row">
+      <div class="field"><label>Latitude</label><input id="f_lat" type="number" step="any" value="${obj?.lat??''}"></div>
+      <div class="field"><label>Longitude</label><input id="f_lng" type="number" step="any" value="${obj?.lng??''}"></div>
+      <button class="btn sm" type="button" id="geoBtn" style="margin-bottom:0">⌖ Locate</button>
+    </div><div class="geo-status" id="geoStatus"></div>`;
+}
+function wireGeo(){
+  const btn=document.getElementById('geoBtn'); if(!btn)return;
+  btn.onclick=async()=>{
+    const q=document.getElementById('f_loc').value.trim();
+    const st=document.getElementById('geoStatus');
+    if(!q){st.textContent='Enter a location/address first.';return;}
+    st.textContent='Searching…'; st.style.color='var(--muted)';
+    try{
+      const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(q),{headers:{'Accept':'application/json'}});
+      const d=await r.json();
+      if(d&&d.length){
+        document.getElementById('f_lat').value=parseFloat(d[0].lat).toFixed(6);
+        document.getElementById('f_lng').value=parseFloat(d[0].lon).toFixed(6);
+        st.style.color='var(--green)'; st.textContent='✓ Located: '+d[0].display_name.slice(0,60);
+      }else{st.style.color='var(--red)';st.textContent='Not found — enter coordinates manually.';}
+    }catch(e){st.style.color='var(--red)';st.textContent='Lookup failed (offline?) — enter coordinates manually.';}
+  };
+}
+
+/* ============ MODAL CONTROL ============ */
+function showModal(){document.getElementById('modalBg').classList.add('show');}
+function closeModal(){document.getElementById('modalBg').classList.remove('show');state.editId=null;state.modalKind=null;}
+document.getElementById('modalBg').addEventListener('click',e=>{if(e.target.id==='modalBg')closeModal();});
+
+async function saveModal(){
+  const v=id=>{const e=document.getElementById(id);return e?e.value:'';};
+  const num=id=>{const x=parseFloat(v(id));return isNaN(x)?0:x;};
+  const k=state.modalKind; let obj;
+  if(k==='trip'){
+    if(!v('f_name').trim()){alert('Trip name required.');return;}
+    obj={id:state.editId||uid(),name:v('f_name'),destination:v('f_dest'),startDate:v('f_start'),endDate:v('f_end'),currency:v('f_cur'),notes:v('f_notes')};
+    await put('trips',obj); await loadAll(); state.activeTripId=obj.id; await setMeta('activeTripId',obj.id);
+  } else {
+    const base={id:state.editId||uid(),tripId:state.activeTripId,notes:v('f_notes')};
+    const lat=v('f_lat')?parseFloat(v('f_lat')):null, lng=v('f_lng')?parseFloat(v('f_lng')):null;
+    if(k==='itinerary'){
+      if(!v('f_title').trim()){alert('Title required.');return;}
+      obj={...base,title:v('f_title'),day:v('f_day'),time:v('f_time'),type:v('f_type'),cost:num('f_cost'),location:v('f_loc'),lat,lng};
+    } else if(k==='hotels'){
+      if(!v('f_name').trim()){alert('Property name required.');return;}
+      obj={...base,name:v('f_name'),checkIn:v('f_in'),checkOut:v('f_out'),cost:num('f_cost'),confirmation:v('f_conf'),location:v('f_loc'),lat,lng};
+    } else if(k==='budget'){
+      if(!v('f_label').trim()){alert('Label required.');return;}
+      obj={...base,label:v('f_label'),category:v('f_cat'),planned:num('f_plan'),actual:num('f_actual')};
+    }
+    await put(k,obj); await loadAll();
+  }
+  closeModal(); render(); if(state.tab==='map')renderMap();
+}
+async function removeItem(store,id){
+  if(!confirm('Delete this item?'))return;
+  await del(store,id); await loadAll(); render(); if(state.tab==='map')renderMap();
+}
+
+/* ============ RENDER ============ */
+function render(){
+  // trip selector
+  const sel=document.getElementById('tripSelect');
+  sel.innerHTML=cache.trips.length?cache.trips.map(t=>`<option value="${t.id}" ${t.id===state.activeTripId?'selected':''}>${esc(t.name)}</option>`).join(''):'<option>— no trips —</option>';
+  document.getElementById('editTripBtn').style.display=activeTrip()?'inline-flex':'none';
+  renderDash(); renderItin(); renderHotels(); renderBudget();
+}
+const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtDate=d=>d?new Date(d+'T00:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}):'—';
+function typeColor(t){return {Activity:'var(--cyan)',Sightseeing:'var(--green)',Meal:'var(--amber)',Transport:'var(--violet)',Meeting:'var(--pink)',Other:'var(--muted)'}[t]||'var(--cyan)';}
+
+function renderDash(){
+  const t=activeTrip();
+  document.getElementById('dashTripName').textContent=t?`${t.name} · ${t.destination||''}`:'No trip selected';
+  const stats=document.getElementById('dashStats'), sum=document.getElementById('dashSummary');
+  if(!t){stats.innerHTML='';sum.innerHTML=`<div class="empty"><span>🧭</span>No trips yet. Click <b>＋ Trip</b> to set up your first mission.</div>`;return;}
+  const itin=tripItems('itinerary'), hotels=tripItems('hotels'), budget=tripItems('budget');
+  const days = (t.startDate&&t.endDate)?Math.max(1,Math.round((new Date(t.endDate)-new Date(t.startDate))/864e5)+1):'—';
+  const plannedTotal=budget.reduce((s,b)=>s+(+b.planned||0),0)+hotels.reduce((s,h)=>s+(+h.cost||0),0)+itin.reduce((s,i)=>s+(+i.cost||0),0);
+  const actualTotal=budget.reduce((s,b)=>s+(+b.actual||0),0)+hotels.reduce((s,h)=>s+(+h.cost||0),0)+itin.reduce((s,i)=>s+(+i.cost||0),0);
+  stats.innerHTML=`
+    ${stat('Duration',days+(days==='—'?'':' days'),'cyan')}
+    ${stat('Events',itin.length,'amber')}
+    ${stat('Stays',hotels.length,'green')}
+    ${stat('Est. Cost',money(plannedTotal),'red')}`;
+  const dateRange=(t.startDate||t.endDate)?`${fmtDate(t.startDate)} → ${fmtDate(t.endDate)}`:'Dates not set';
+  sum.innerHTML=`
+    <div class="card"><div class="corner"></div>
+      <div class="card-head"><h3>${esc(t.name)}</h3><span class="pill">${t.currency}</span></div>
+      <div class="meta"><span>📍 <b>${esc(t.destination)||'—'}</b></span><span>🗓 <b>${dateRange}</b></span></div>
+      ${t.notes?`<div class="notes">${esc(t.notes)}</div>`:''}
+    </div>
+    <div class="stats" style="margin-top:6px">
+      ${stat('Plotted on map',itin.filter(i=>i.lat).length+hotels.filter(h=>h.lat).length+' points','cyan')}
+      ${stat('Budget lines',budget.length,'amber')}
+    </div>`;
+}
+const stat=(l,v,c='amber')=>`<div class="stat ${c}"><div class="lab">${l}</div><div class="val">${v}</div></div>`;
+
+function renderItin(){
+  const wrap=document.getElementById('itinList');
+  const items=tripItems('itinerary').slice().sort((a,b)=>(a.day||'').localeCompare(b.day||'')||(a.time||'').localeCompare(b.time||''));
+  if(!activeTrip()){wrap.innerHTML=`<div class="empty"><span>🧭</span>Select or create a trip first.</div>`;return;}
+  if(!items.length){wrap.innerHTML=`<div class="empty"><span>📋</span>No events yet. Add your first one.</div>`;return;}
+  const byDay={}; items.forEach(i=>{(byDay[i.day||'undated']=byDay[i.day||'undated']||[]).push(i);});
+  wrap.innerHTML=Object.keys(byDay).sort().map(day=>{
+    const dayCost=byDay[day].reduce((s,i)=>s+(+i.cost||0),0);
+    return `<div class="day-head"><span class="d">${day==='undated'?'UNDATED':'DAY'}</span><span class="dn">${day==='undated'?'No date set':fmtDate(day)}</span><span class="dc">${dayCost?money(dayCost):''}</span></div>
+      <div class="timeline">${byDay[day].map(i=>`
+        <div class="tl-item">
+          <div class="card" style="margin-bottom:0">
+            <div class="card-head">
+              <div>${i.time?`<span class="time">${i.time}</span> · `:''}<h3 style="display:inline">${esc(i.title)}</h3></div>
+              <div class="item-actions">
+                <span class="tag" style="color:${typeColor(i.type)};border-color:${typeColor(i.type)}">${i.type}</span>
+                <button class="icon-btn" onclick="openItinModal('${i.id}')">✎</button>
+                <button class="icon-btn" onclick="removeItem('itinerary','${i.id}')">🗑</button>
+              </div>
+            </div>
+            <div class="meta">
+              ${i.location?`<span>📍 ${esc(i.location)}</span>`:''}
+              ${i.lat?`<span class="coord">⌖ ${(+i.lat).toFixed(4)}, ${(+i.lng).toFixed(4)}</span>`:''}
+              ${i.cost?`<span>💵 <b>${money(i.cost)}</b></span>`:''}
+            </div>
+            ${i.notes?`<div class="notes">${esc(i.notes)}</div>`:''}
+          </div>
+        </div>`).join('')}</div>`;
+  }).join('');
+}
+
+function renderHotels(){
+  const wrap=document.getElementById('hotelList');
+  const items=tripItems('hotels').slice().sort((a,b)=>(a.checkIn||'').localeCompare(b.checkIn||''));
+  if(!activeTrip()){wrap.innerHTML=`<div class="empty"><span>🧭</span>Select or create a trip first.</div>`;return;}
+  if(!items.length){wrap.innerHTML=`<div class="empty"><span>🏨</span>No lodging added yet.</div>`;return;}
+  wrap.innerHTML=items.map(h=>{
+    const nights=(h.checkIn&&h.checkOut)?Math.max(0,Math.round((new Date(h.checkOut)-new Date(h.checkIn))/864e5)):0;
+    return `<div class="card"><div class="corner"></div>
+      <div class="card-head"><h3>🏨 ${esc(h.name)}</h3>
+        <div class="item-actions">
+          ${nights?`<span class="pill">${nights} night${nights>1?'s':''}</span>`:''}
+          <button class="icon-btn" onclick="openHotelModal('${h.id}')">✎</button>
+          <button class="icon-btn" onclick="removeItem('hotels','${h.id}')">🗑</button>
+        </div>
+      </div>
+      <div class="meta">
+        <span>📅 <b>${fmtDate(h.checkIn)}</b> → <b>${fmtDate(h.checkOut)}</b></span>
+        ${h.cost?`<span>💵 <b>${money(h.cost)}</b></span>`:''}
+        ${h.confirmation?`<span># <b>${esc(h.confirmation)}</b></span>`:''}
+        ${h.location?`<span>📍 ${esc(h.location)}</span>`:''}
+        ${h.lat?`<span class="coord">⌖ ${(+h.lat).toFixed(4)}, ${(+h.lng).toFixed(4)}</span>`:''}
+      </div>
+      ${h.notes?`<div class="notes">${esc(h.notes)}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+function renderBudget(){
+  const statWrap=document.getElementById('budgetStats'), barWrap=document.getElementById('budgetBars'), listWrap=document.getElementById('budgetList');
+  if(!activeTrip()){statWrap.innerHTML='';barWrap.innerHTML='';listWrap.innerHTML=`<div class="empty"><span>🧭</span>Select or create a trip first.</div>`;return;}
+  const budget=tripItems('budget'), hotels=tripItems('hotels'), itin=tripItems('itinerary');
+  // auto-fold lodging + event costs into category totals
+  const cats={}; BUD_CATS.forEach(c=>cats[c]={plan:0,act:0});
+  budget.forEach(b=>{cats[b.category]=cats[b.category]||{plan:0,act:0};cats[b.category].plan+=+b.planned||0;cats[b.category].act+=+b.actual||0;});
+  hotels.forEach(h=>{cats.Lodging.plan+=+h.cost||0;cats.Lodging.act+=+h.cost||0;});
+  itin.forEach(i=>{cats.Activities.plan+=+i.cost||0;cats.Activities.act+=+i.cost||0;});
+  const plan=Object.values(cats).reduce((s,c)=>s+c.plan,0), act=Object.values(cats).reduce((s,c)=>s+c.act,0);
+  const diff=plan-act;
+  statWrap.innerHTML=`
+    ${stat('Planned',money(plan),'cyan')}
+    ${stat('Actual',money(act),'amber')}
+    ${stat(diff>=0?'Under budget':'Over budget',money(Math.abs(diff)),diff>=0?'green':'red')}`;
+  const max=Math.max(...Object.values(cats).map(c=>Math.max(c.plan,c.act)),1);
+  const colors={Lodging:'var(--green)',Transport:'var(--violet)',Food:'var(--amber)',Activities:'var(--cyan)',Shopping:'var(--pink)',Insurance:'var(--muted)',Misc:'var(--muted)'};
+  barWrap.innerHTML=`<div class="card"><div class="corner"></div><h3 style="margin-bottom:14px">By Category</h3>`+
+    Object.keys(cats).filter(c=>cats[c].plan||cats[c].act).map(c=>{
+      const cc=cats[c];
+      return `<div class="bar-row">
+        <div class="bl"><span class="cat">${c}</span><span class="am">${money(cc.act)} <span style="color:var(--muted2)">/ ${money(cc.plan)} plan</span></span></div>
+        <div class="bar-track"><div class="bar-plan" style="width:${cc.plan/max*100}%"></div><div class="bar-fill" style="width:${cc.act/max*100}%;background:${colors[c]||'var(--cyan)'}"></div></div>
+      </div>`;
+    }).join('')+`<p class="hint">Solid = actual · hatched = planned. Lodging and event costs are auto-included.</p></div>`;
+  // manual line items
+  if(!budget.length){listWrap.innerHTML=`<div class="empty"><span>💰</span>No manual line items. Lodging and event costs already counted above.</div>`;return;}
+  listWrap.innerHTML=`<h3 style="margin-bottom:10px;font-size:14px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:1px">Manual Line Items</h3>`+
+    budget.map(b=>`<div class="card" style="padding:12px 16px">
+      <div class="card-head">
+        <div><h3 style="display:inline">${esc(b.label)}</h3> <span class="pill">${b.category}</span></div>
+        <div class="item-actions">
+          <span class="meta" style="margin:0"><b style="color:var(--amber)">${money(b.actual)}</b> / ${money(b.planned)}</span>
+          <button class="icon-btn" onclick="openBudgetModal('${b.id}')">✎</button>
+          <button class="icon-btn" onclick="removeItem('budget','${b.id}')">🗑</button>
+        </div>
+      </div>
+      ${b.notes?`<div class="notes">${esc(b.notes)}</div>`:''}
+    </div>`).join('');
+}
+
+/* ============ MAP (GEOINT) ============ */
+let map, layers={}, markerGroup, routeGroup, mapReady=false;
+const TILES={
+  Dark:{url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',opts:{subdomains:'abcd',attribution:'© OSM © CARTO'}},
+  Satellite:{url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',opts:{attribution:'© Esri'}},
+  Terrain:{url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',opts:{subdomains:'abc',attribution:'© OpenTopoMap'}},
+  Streets:{url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',opts:{subdomains:'abc',attribution:'© OSM'}}
+};
+function initMap(){
+  if(mapReady){map.invalidateSize();renderMap();return;}
+  map=L.map('map',{zoomControl:true,attributionControl:true}).setView([20,0],2);
+  Object.entries(TILES).forEach(([k,t])=>layers[k]=L.tileLayer(t.url,{maxZoom:19,...t.opts}));
+  const defLayer=document.documentElement.dataset.theme==='light'?'Streets':'Dark'; layers[defLayer].addTo(map);
+  markerGroup=L.layerGroup().addTo(map); routeGroup=L.layerGroup().addTo(map);
+  // layer buttons
+  document.getElementById('layerCtl').innerHTML=Object.keys(TILES).map((k,i)=>`<button class="${k===defLayer?'active':''}" onclick="setLayer('${k}',this)">${k}</button>`).join('');
+  // legend
+  document.getElementById('mapLegend').innerHTML=`
+    ${leg('var(--cyan)','Activity')}${leg('var(--green)','Sightseeing')}${leg('var(--amber)','Meal')}
+    ${leg('var(--violet)','Transport')}${leg('var(--pink)','Meeting')}${leg('var(--red)','Lodging')}`;
+  map.on('mousemove',e=>{document.getElementById('mapHud').textContent=`LAT ${e.latlng.lat.toFixed(4)}, LON ${e.latlng.lng.toFixed(4)}`;});
+  mapReady=true; renderMap();
+}
+const leg=(c,t)=>`<div class="li"><span class="dot" style="background:${c}"></span>${t}</div>`;
+function setLayer(k,btn){Object.values(layers).forEach(l=>map.removeLayer(l));layers[k].addTo(map);document.querySelectorAll('.layer-ctl button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');}
+function pinIcon(color,letter){return L.divIcon({className:'',html:`<div class="pin" style="background:${color}"><span>${letter}</span></div>`,iconSize:[26,26],iconAnchor:[13,24],popupAnchor:[0,-22]});}
+function renderMap(){
+  if(!mapReady)return;
+  markerGroup.clearLayers(); routeGroup.clearLayers();
+  const itin=tripItems('itinerary').filter(i=>i.lat&&i.lng);
+  const hotels=tripItems('hotels').filter(h=>h.lat&&h.lng);
+  const pts=[];
+  itin.forEach(i=>{
+    const c=typeColor(i.type); const m=L.marker([i.lat,i.lng],{icon:pinIcon(c,(i.type||'A')[0])});
+    m.bindPopup(`<b>${esc(i.title)}</b><br>${i.type}${i.time?' · '+i.time:''}<br>${fmtDate(i.day)}${i.location?'<br>📍 '+esc(i.location):''}${i.cost?'<br>💵 '+money(i.cost):''}`);
+    markerGroup.addLayer(m); pts.push([i.lat,i.lng]);
+  });
+  hotels.forEach(h=>{
+    const m=L.marker([h.lat,h.lng],{icon:pinIcon('var(--red)','H')});
+    m.bindPopup(`<b>🏨 ${esc(h.name)}</b><br>${fmtDate(h.checkIn)} → ${fmtDate(h.checkOut)}${h.cost?'<br>💵 '+money(h.cost):''}${h.location?'<br>📍 '+esc(h.location):''}`);
+    markerGroup.addLayer(m); pts.push([h.lat,h.lng]);
+  });
+  // routes per day
+  if(state.showRoutes){
+    const byDay={}; itin.slice().sort((a,b)=>(a.time||'').localeCompare(b.time||'')).forEach(i=>{(byDay[i.day]=byDay[i.day]||[]).push([i.lat,i.lng]);});
+    Object.values(byDay).forEach(line=>{ if(line.length>1) routeGroup.addLayer(L.polyline(line,{color:'#f0a202',weight:2,dashArray:'6 6',opacity:.7})); });
+  }
+  if(pts.length) map.fitBounds(pts,{padding:[50,50],maxZoom:14});
+}
+function fitAll(){const pts=[...tripItems('itinerary'),...tripItems('hotels')].filter(x=>x.lat).map(x=>[x.lat,x.lng]);if(pts.length)map.fitBounds(pts,{padding:[50,50],maxZoom:14});else alert('No plotted points yet. Add coordinates to events or lodging.');}
+function toggleRoutes(){state.showRoutes=!state.showRoutes;document.getElementById('routeBtn').textContent='⤳ Routes: '+(state.showRoutes?'ON':'OFF');renderMap();}
+
+/* ============ BACKUP / RESTORE ============ */
+/* ============ PRINT BRIEF ============ */
+function printBrief(){
+  const t=activeTrip();
+  if(!t){alert('Select or create a trip first.');return;}
+  const itin=tripItems('itinerary').slice().sort((a,b)=>(a.day||'').localeCompare(b.day||'')||(a.time||'').localeCompare(b.time||''));
+  const hotels=tripItems('hotels').slice().sort((a,b)=>(a.checkIn||'').localeCompare(b.checkIn||''));
+  const budget=tripItems('budget');
+
+  // budget fold (mirrors the Budget tab: lodging + event costs auto-included)
+  const cats={}; BUD_CATS.forEach(c=>cats[c]={plan:0,act:0});
+  budget.forEach(b=>{cats[b.category]=cats[b.category]||{plan:0,act:0};cats[b.category].plan+=+b.planned||0;cats[b.category].act+=+b.actual||0;});
+  hotels.forEach(h=>{cats.Lodging.plan+=+h.cost||0;cats.Lodging.act+=+h.cost||0;});
+  itin.forEach(i=>{cats.Activities.plan+=+i.cost||0;cats.Activities.act+=+i.cost||0;});
+  const plan=Object.values(cats).reduce((s,c)=>s+c.plan,0), act=Object.values(cats).reduce((s,c)=>s+c.act,0);
+
+  const days=(t.startDate&&t.endDate)?Math.max(1,Math.round((new Date(t.endDate)-new Date(t.startDate))/864e5)+1):null;
+  const dateRange=(t.startDate||t.endDate)?`${fmtDate(t.startDate)} → ${fmtDate(t.endDate)}`:'Dates not set';
+
+  const byDay={}; itin.forEach(i=>{(byDay[i.day||'undated']=byDay[i.day||'undated']||[]).push(i);});
+  const itinHtml=Object.keys(byDay).sort().map(day=>{
+    const dayCost=byDay[day].reduce((s,i)=>s+(+i.cost||0),0);
+    return `<h3 class="pb-day">${day==='undated'?'No date set':fmtDate(day)}${dayCost?'<span class="pb-cost">'+money(dayCost)+'</span>':''}</h3>
+      <table class="pb-tbl"><tbody>${byDay[day].map(i=>`
+        <tr><td class="pb-time">${i.time?esc(i.time):'—'}</td>
+        <td><b>${esc(i.title)}</b> <span class="pb-tag">${esc(i.type||'')}</span>${i.location?'<br><span class="pb-sub">'+esc(i.location)+'</span>':''}${i.notes?'<br><span class="pb-sub">'+esc(i.notes)+'</span>':''}</td>
+        <td class="pb-amt">${i.cost?money(i.cost):''}</td></tr>`).join('')}</tbody></table>`;
+  }).join('') || '<p class="pb-empty">No itinerary events.</p>';
+
+  const hotelHtml=hotels.length?`<table class="pb-tbl"><thead><tr><th>Property</th><th>Dates</th><th>Conf.</th><th class="pb-amt">Cost</th></tr></thead><tbody>${hotels.map(h=>{
+    const nights=(h.checkIn&&h.checkOut)?Math.max(0,Math.round((new Date(h.checkOut)-new Date(h.checkIn))/864e5)):0;
+    return `<tr><td><b>${esc(h.name)}</b>${h.location?'<br><span class="pb-sub">'+esc(h.location)+'</span>':''}</td>
+      <td>${fmtDate(h.checkIn)} → ${fmtDate(h.checkOut)}${nights?'<br><span class="pb-sub">'+nights+' night'+(nights>1?'s':'')+'</span>':''}</td>
+      <td>${h.confirmation?esc(h.confirmation):'—'}</td><td class="pb-amt">${h.cost?money(h.cost):''}</td></tr>`;
+  }).join('')}</tbody></table>`:'<p class="pb-empty">No lodging recorded.</p>';
+
+  const budgetRows=Object.keys(cats).filter(c=>cats[c].plan||cats[c].act)
+    .map(c=>`<tr><td>${c}</td><td class="pb-amt">${money(cats[c].plan)}</td><td class="pb-amt">${money(cats[c].act)}</td></tr>`).join('');
+  const budgetHtml=`<table class="pb-tbl"><thead><tr><th>Category</th><th class="pb-amt">Planned</th><th class="pb-amt">Actual</th></tr></thead>
+    <tbody>${budgetRows||'<tr><td colspan="3" class="pb-empty">No budget data.</td></tr>'}</tbody>
+    <tfoot><tr><td><b>Total</b></td><td class="pb-amt"><b>${money(plan)}</b></td><td class="pb-amt"><b>${money(act)}</b></td></tr></tfoot></table>`;
+
+  document.getElementById('printContent').innerHTML=`
+    <div class="pb">
+      <div class="pb-head">
+        <div class="pb-kicker">TRIP BRIEF</div>
+        <h1 class="pb-title">${esc(t.name)}</h1>
+        <div class="pb-meta">${esc(t.destination||'')}${t.destination?' · ':''}${dateRange}${days?' · '+days+' day'+(days>1?'s':''):''}${t.currency?' · '+esc(t.currency):''}</div>
+      </div>
+      ${t.notes?`<div class="pb-notes">${esc(t.notes)}</div>`:''}
+      <h2 class="pb-sec">Itinerary</h2>${itinHtml}
+      <h2 class="pb-sec">Lodging</h2>${hotelHtml}
+      <h2 class="pb-sec">Budget</h2>${budgetHtml}
+      <div class="pb-foot">Generated ${new Date().toLocaleString()} · AEGIS Trip Command</div>
+    </div>`;
+
+  const pv=document.getElementById('view-print');
+  pv.classList.add('print-on');   // print-only view: hidden on screen, so it can safely stay applied
+  setTimeout(()=>window.print(),80);
+}
+
+async function exportData(){
+  const data={version:1,exported:new Date().toISOString(),...cache};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='trip-command-backup-'+new Date().toISOString().slice(0,10)+'.json'; a.click();
+}
+async function importData(ev){
+  const f=ev.target.files[0]; if(!f)return;
+  try{
+    const data=JSON.parse(await f.text());
+    if(!confirm('Restore will merge this backup into your current data. Continue?'))return;
+    for(const s of ['trips','itinerary','hotels','budget']) for(const it of (data[s]||[])) await put(s,it);
+    await loadAll(); render(); alert('Restore complete.');
+  }catch(e){alert('Invalid backup file.');}
+  ev.target.value='';
+}
+
+/* ============ BOOT ============ */
+(async()=>{
+  if(!(await AEGIS.auth.require())) return;
+  await openDB();
+  if(AEGIS.applyChrome) AEGIS.applyChrome();
+  await loadAll();
+  render();
+})();
+</script>
+</body>
+</html>

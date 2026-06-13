@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script>try{var __t=localStorage.getItem('aegis.theme');if(__t)document.documentElement.dataset.theme=__t}catch(e){}</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Analytic Workbench // Operational · AEGIS</title>
+<link rel="icon" type="image/png" href="assets/favicon.png"/>
+
+<!-- External libraries (load from user's browser; offline-safe degradation) -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.9/dist/vis-network.min.js"></script>
+<script src="assets/aegis-common.js"></script>
+<script src="assets/aegis-i18n.js"></script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Spectral:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --bg:#0c1016;
+  --bg-2:#11161f;
+  --panel:#151c27;
+  --panel-2:#1a2331;
+  --line:#26313f;
+  --line-soft:#1e2733;
+  --ink:#d6dde6;
+  --ink-dim:#8b97a6;
+  --ink-faint:#5d6877;
+  --primary:#3fb6c4;      /* desaturated teal */
+  --primary-dim:#2a7d87;
+  --amber:#d9a441;        /* classification / caution */
+  --amber-soft:#7a5e25;
+  --red:#d96a5b;
+  --green:#6fb98f;
+  --violet:#9a8bd0;
+  --shadow:0 10px 30px rgba(0,0,0,.45);
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --sans:'IBM Plex Sans',system-ui,sans-serif;
+  --serif:'Spectral',Georgia,serif;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:14px;
+  line-height:1.5;
+  background-image:
+    linear-gradient(rgba(63,182,196,.025) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(63,182,196,.025) 1px,transparent 1px);
+  background-size:34px 34px;
+}
+
+/* ---------- Classification banners ---------- */
+.class-banner{
+  background:var(--amber);
+  color:#1a1305;
+  text-align:center;
+  font-family:var(--mono);
+  font-weight:600;
+  font-size:11px;
+  letter-spacing:.18em;
+  padding:4px 8px;
+  text-transform:uppercase;
+}
+.class-banner.bottom{position:fixed;bottom:0;left:0;right:0;z-index:50}
+
+/* ---------- Shell ---------- */
+.shell{display:flex;min-height:100vh;padding-bottom:26px}
+.side{
+  width:230px;flex:0 0 230px;
+  background:linear-gradient(180deg,var(--bg-2),var(--bg));
+  border-right:1px solid var(--line);
+  position:sticky;top:0;align-self:flex-start;height:100vh;
+  display:flex;flex-direction:column;
+}
+.brand{padding:18px 18px 14px;border-bottom:1px solid var(--line)}
+.brand .seal{
+  width:42px;height:42px;border-radius:50%;
+  border:1.5px solid var(--primary-dim);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:9px;color:var(--primary);
+  letter-spacing:.1em;margin-bottom:10px;
+  background:radial-gradient(circle at 50% 40%,rgba(63,182,196,.12),transparent 70%);
+  position:relative;
+}
+.brand .seal::before{content:"";position:absolute;inset:4px;border:1px dashed rgba(63,182,196,.3);border-radius:50%}
+.brand h1{font-size:15px;margin:0;letter-spacing:.04em;font-weight:700}
+.brand .sub{font-family:var(--mono);font-size:9.5px;color:var(--ink-faint);letter-spacing:.16em;text-transform:uppercase;margin-top:3px}
+
+nav{padding:10px 8px;flex:1;overflow:auto}
+nav .grp{font-family:var(--mono);font-size:9px;letter-spacing:.18em;color:var(--ink-faint);padding:14px 12px 6px;text-transform:uppercase}
+.navbtn{
+  display:flex;align-items:center;gap:10px;width:100%;
+  background:none;border:none;color:var(--ink-dim);
+  font-family:var(--sans);font-size:13px;text-align:left;
+  padding:9px 12px;border-radius:6px;cursor:pointer;
+  letter-spacing:.01em;transition:all .12s;
+}
+.navbtn:hover{background:var(--panel);color:var(--ink)}
+.navbtn.active{background:var(--panel-2);color:var(--primary);box-shadow:inset 2px 0 0 var(--primary)}
+.navbtn .ic{width:16px;text-align:center;font-family:var(--mono);font-size:13px;opacity:.85}
+.navbtn .ct{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--ink-faint);background:var(--bg);padding:1px 6px;border-radius:10px}
+
+.side-foot{padding:12px;border-top:1px solid var(--line);display:flex;gap:6px;flex-wrap:wrap}
+.side-foot button{flex:1;min-width:0}
+
+/* ---------- Main ---------- */
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{
+  display:flex;align-items:center;gap:14px;
+  padding:14px 26px;border-bottom:1px solid var(--line);
+  background:linear-gradient(180deg,var(--bg-2),transparent);
+  position:sticky;top:0;z-index:20;backdrop-filter:blur(6px);
+}
+.topbar h2{margin:0;font-size:18px;font-weight:600;letter-spacing:.01em}
+.topbar .crumb{font-family:var(--mono);font-size:10px;color:var(--ink-faint);letter-spacing:.14em;text-transform:uppercase}
+.topbar .spacer{flex:1}
+.dtg{font-family:var(--mono);font-size:11px;color:var(--primary);letter-spacing:.06em}
+.dtg small{color:var(--ink-faint);display:block;text-align:right;font-size:9px;letter-spacing:.16em}
+
+.view{padding:24px 26px;display:none;animation:fade .25s ease}
+.view.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* ---------- Generic components ---------- */
+.btn{
+  font-family:var(--sans);font-size:12.5px;font-weight:500;
+  background:var(--panel-2);color:var(--ink);
+  border:1px solid var(--line);border-radius:6px;
+  padding:8px 14px;cursor:pointer;transition:all .12s;letter-spacing:.01em;
+}
+.btn:hover{border-color:var(--primary-dim);color:#fff}
+.btn.primary{background:var(--primary-dim);border-color:var(--primary);color:#eafdff;font-weight:600}
+.btn.primary:hover{background:var(--primary);color:#06181b}
+.btn.ghost{background:transparent}
+.btn.danger:hover{border-color:var(--red);color:var(--red)}
+.btn.sm{padding:5px 10px;font-size:11px}
+.btn.mono{font-family:var(--mono);font-size:10px;letter-spacing:.08em}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow)}
+.card .hd{padding:14px 16px;border-bottom:1px solid var(--line-soft);display:flex;align-items:center;gap:10px}
+.card .hd h3{margin:0;font-size:13px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--ink)}
+.card .hd .tag{font-family:var(--mono);font-size:9px;color:var(--ink-faint);letter-spacing:.14em}
+.card .bd{padding:16px}
+
+.grid{display:grid;gap:16px}
+.cols-4{grid-template-columns:repeat(4,1fr)}
+.cols-3{grid-template-columns:repeat(3,1fr)}
+.cols-2{grid-template-columns:repeat(2,1fr)}
+@media(max-width:1080px){.cols-4{grid-template-columns:repeat(2,1fr)}.cols-3,.cols-2{grid-template-columns:1fr}}
+
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;position:relative;overflow:hidden}
+.stat::after{content:"";position:absolute;right:-20px;top:-20px;width:70px;height:70px;border-radius:50%;background:radial-gradient(circle,rgba(63,182,196,.1),transparent 70%)}
+.stat .lbl{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;color:var(--ink-faint);text-transform:uppercase}
+.stat .num{font-size:30px;font-weight:700;font-family:var(--mono);margin-top:6px;color:#fff}
+.stat .meta{font-size:11px;color:var(--ink-dim);margin-top:2px}
+
+label.fl{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--ink-dim);text-transform:uppercase;margin:0 0 5px}
+input,select,textarea{
+  width:100%;background:var(--bg);color:var(--ink);
+  border:1px solid var(--line);border-radius:6px;
+  padding:9px 11px;font-family:var(--sans);font-size:13px;
+}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--primary-dim);box-shadow:0 0 0 2px rgba(63,182,196,.12)}
+textarea{resize:vertical;min-height:80px;line-height:1.55}
+.field{margin-bottom:14px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);text-align:left;padding:9px 12px;border-bottom:1px solid var(--line)}
+td{padding:10px 12px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+tr:hover td{background:rgba(63,182,196,.03)}
+.clickrow{cursor:pointer}
+
+.pill{display:inline-block;font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;padding:2px 8px;border-radius:20px;border:1px solid var(--line);text-transform:uppercase}
+.pill.int{color:var(--primary);border-color:var(--primary-dim)}
+.pill.r-A,.pill.r-B{color:var(--green);border-color:var(--green)}
+.pill.r-C,.pill.r-D{color:var(--amber);border-color:var(--amber-soft)}
+.pill.r-E,.pill.r-F{color:var(--red);border-color:var(--red)}
+
+.empty{padding:40px;text-align:center;color:var(--ink-faint);font-family:var(--mono);font-size:11px;letter-spacing:.1em}
+
+/* drawer / modal */
+.scrim{position:fixed;inset:0;background:rgba(4,7,11,.6);backdrop-filter:blur(3px);z-index:60;display:none}
+.scrim.open{display:block}
+.drawer{
+  position:fixed;top:0;right:0;height:100vh;width:560px;max-width:94vw;
+  background:var(--bg-2);border-left:1px solid var(--line);z-index:61;
+  transform:translateX(100%);transition:transform .26s cubic-bezier(.4,0,.2,1);
+  display:flex;flex-direction:column;box-shadow:-20px 0 50px rgba(0,0,0,.5);
+}
+.drawer.open{transform:none}
+.drawer .dh{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+.drawer .dh h3{margin:0;font-size:15px}
+.drawer .db{padding:20px;overflow:auto;flex:1}
+.drawer .df{padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end}
+.x{margin-left:auto;background:none;border:none;color:var(--ink-faint);font-size:20px;cursor:pointer;line-height:1}
+.x:hover{color:var(--red)}
+
+.kv{display:grid;grid-template-columns:140px 1fr;gap:6px 12px;font-size:13px}
+.kv dt{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--ink-faint);text-transform:uppercase;padding-top:2px}
+.kv dd{margin:0}
+
+.report-text{font-family:var(--serif);font-size:15px;line-height:1.7;background:var(--panel);border:1px solid var(--line-soft);border-left:3px solid var(--primary-dim);border-radius:0 6px 6px 0;padding:14px 16px;white-space:pre-wrap}
+
+.tag-input{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.chip{font-family:var(--mono);font-size:10px;background:var(--panel-2);border:1px solid var(--line);border-radius:14px;padding:3px 9px;display:inline-flex;gap:6px;align-items:center}
+.chip b{cursor:pointer;color:var(--ink-faint)}
+.chip b:hover{color:var(--red)}
+
+#map,#netgraph{height:560px;border-radius:8px;border:1px solid var(--line);background:var(--bg)}
+.leaflet-popup-content-wrapper{background:var(--panel-2);color:var(--ink);border-radius:8px;font-family:var(--sans)}
+.leaflet-popup-tip{background:var(--panel-2)}
+.leaflet-popup-content{margin:12px 14px;font-size:12px}
+.leaflet-container{background:#0a0d12}
+
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-family:var(--mono);font-size:10px;color:var(--ink-dim);letter-spacing:.06em}
+.legend span{display:flex;align-items:center;gap:6px}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+
+/* ACH matrix */
+.ach-wrap{overflow:auto}
+.ach{border-collapse:collapse;width:100%;min-width:560px}
+.ach th,.ach td{border:1px solid var(--line);padding:8px;text-align:center;font-size:12px}
+.ach th.evcol{text-align:left;min-width:220px}
+.ach td.evcell{text-align:left;font-family:var(--sans);font-size:12px}
+.ach select{padding:4px;font-family:var(--mono);font-size:11px;text-align:center}
+.cc-CC{background:rgba(111,185,143,.22)}
+.cc-C{background:rgba(111,185,143,.10)}
+.cc-N{background:transparent}
+.cc-I{background:rgba(217,106,91,.12)}
+.cc-II{background:rgba(217,106,91,.26)}
+.ach tfoot td{font-family:var(--mono);font-weight:600}
+
+.score-bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden;margin-top:4px}
+.score-bar i{display:block;height:100%;background:var(--primary)}
+
+.wep-scale{display:flex;border-radius:6px;overflow:hidden;border:1px solid var(--line);font-family:var(--mono);font-size:9px}
+.wep-scale div{flex:1;padding:6px 4px;text-align:center;color:#0a0d12;letter-spacing:.02em;line-height:1.3}
+
+.note{font-size:11px;color:var(--ink-faint);font-style:italic;line-height:1.5}
+.ref h4{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--primary);text-transform:uppercase;margin:0 0 8px}
+.ref p{margin:0 0 10px;font-size:13px;color:var(--ink-dim)}
+.ref ul{margin:0 0 10px;padding-left:18px;font-size:13px;color:var(--ink-dim)}
+.ref li{margin-bottom:4px}
+.codetable td:first-child{font-family:var(--mono);color:var(--primary);width:54px;font-weight:600}
+
+.toolbar{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+.toolbar .spacer{flex:1}
+.search{position:relative;flex:0 0 280px;max-width:100%}
+.search input{padding-left:30px}
+.search::before{content:"⌕";position:absolute;left:10px;top:7px;color:var(--ink-faint);font-size:15px}
+
+.flash{position:fixed;bottom:40px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--panel-2);border:1px solid var(--primary-dim);color:var(--ink);padding:10px 18px;border-radius:8px;font-size:12.5px;z-index:90;opacity:0;transition:all .3s;box-shadow:var(--shadow);font-family:var(--mono);letter-spacing:.04em}
+.flash.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ============ LIGHT THEME ============ */
+:root[data-theme="light"]{
+  --bg:#eef1f4; --bg-2:#e6eaef; --panel:#ffffff; --panel-2:#f2f5f8;
+  --line:#d4dbe3; --line-soft:#e3e8ee;
+  --ink:#1d2630; --ink-dim:#4f5e6d; --ink-faint:#8392a1;
+  --primary:#157f8e; --primary-dim:#0e5a66;
+  --amber:#9c6d10; --amber-soft:#e3c98e; --red:#b14437; --green:#23784a; --violet:#65589f;
+  --shadow:0 10px 30px rgba(25,35,45,.12);
+}
+:root[data-theme="light"] body{background-image:
+  linear-gradient(rgba(21,127,142,.05) 1px,transparent 1px),
+  linear-gradient(90deg,rgba(21,127,142,.05) 1px,transparent 1px)}
+[data-theme="light"] .side{background:linear-gradient(180deg,#e6eaef,#eef1f4)}
+[data-theme="light"] .topbar{background:linear-gradient(180deg,#e6eaef,transparent)}
+[data-theme="light"] .btn:hover{color:var(--ink)}
+[data-theme="light"] .btn.primary{color:#fff}
+[data-theme="light"] .btn.primary:hover{color:#fff;background:var(--primary)}
+[data-theme="light"] .stat .num{color:var(--ink)}
+[data-theme="light"] .class-banner{background:var(--amber-soft);color:#3a2c08}
+[data-theme="light"] .leaflet-container{background:#dfe6ec}
+</style>
+</head>
+<body>
+<!-- AEGIS Suite return control (injected) -->
+<a href="index.html" id="aegis-home" title="Return to AEGIS Suite">&#9664; SUITE</a>
+<style>#aegis-home{position:fixed;left:14px;bottom:36px;z-index:99999;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.12em;text-decoration:none;background:rgba(10,14,20,.92);color:#cfe9ee;border:1px solid #3fb6c4;border-radius:8px;padding:7px 12px;box-shadow:0 6px 20px rgba(0,0,0,.45);backdrop-filter:blur(6px);transition:.15s}#aegis-home:hover{background:#3fb6c4;color:#06181b;transform:translateY(-1px)}@media print{#aegis-home{display:none!important}}</style>
+<div class="class-banner top" data-aegis-class>Unclassified // Internal Use</div>
+
+<div class="shell">
+  <!-- ===== Sidebar ===== -->
+  <aside class="side">
+    <div class="brand">
+      <img src="assets/logo.png" alt="" style="width:44px;height:44px;border-radius:50%;filter:drop-shadow(0 0 6px rgba(70,211,105,.28))">
+      <h1>Analytic Workbench</h1>
+      <div class="sub">All-Source · Operational</div>
+    </div>
+    <nav id="nav">
+      <div class="grp">Collection</div>
+      <button class="navbtn active" data-view="dashboard"><span class="ic">▤</span> Dashboard</button>
+      <button class="navbtn" data-view="log"><span class="ic">≡</span> Intelligence Log <span class="ct" id="ct-log">0</span></button>
+      <button class="navbtn" data-view="entities"><span class="ic">◈</span> Entity Registry <span class="ct" id="ct-ent">0</span></button>
+      <div class="grp">Analysis</div>
+      <button class="navbtn" data-view="link"><span class="ic">⬡</span> Link Analysis</button>
+      <button class="navbtn" data-view="geo"><span class="ic">⊕</span> GEOINT Map</button>
+      <button class="navbtn" data-view="ach"><span class="ic">⊞</span> Competing Hypotheses</button>
+      <div class="grp">Reference</div>
+      <button class="navbtn" data-view="tradecraft"><span class="ic">§</span> Tradecraft Primer</button>
+    </nav>
+    <div class="side-foot">
+      <button class="btn sm mono" id="btn-export">Export</button>
+      <button class="btn sm mono" id="btn-import">Import</button>
+      <button class="btn sm mono danger" id="btn-purge">Purge</button>
+    </div>
+  </aside>
+
+  <!-- ===== Main ===== -->
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <div class="crumb" id="crumb">COLLECTION / DASHBOARD</div>
+        <h2 id="viewtitle">Dashboard</h2>
+      </div>
+      <div class="spacer"></div>
+      <div class="dtg"><small>DTG (ZULU)</small><span id="dtg">—</span></div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <section class="view active" id="view-dashboard">
+      <div class="grid cols-4" style="margin-bottom:16px">
+        <div class="stat"><div class="lbl">Reporting</div><div class="num" id="s-reports">0</div><div class="meta">logged items</div></div>
+        <div class="stat"><div class="lbl">Entities</div><div class="num" id="s-ent">0</div><div class="meta">tracked subjects</div></div>
+        <div class="stat"><div class="lbl">Links</div><div class="num" id="s-links">0</div><div class="meta">relationships</div></div>
+        <div class="stat"><div class="lbl">Geolocated</div><div class="num" id="s-geo">0</div><div class="meta">with coordinates</div></div>
+      </div>
+      <div class="grid cols-2">
+        <div class="card">
+          <div class="hd"><h3>Collection by Discipline</h3><span class="tag">INT BREAKDOWN</span></div>
+          <div class="bd" id="int-breakdown"></div>
+        </div>
+        <div class="card">
+          <div class="hd"><h3>Source Reliability Profile</h3><span class="tag">ADMIRALTY</span></div>
+          <div class="bd" id="rel-breakdown"></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <div class="hd"><h3>Recent Reporting</h3><span class="tag">LATEST 6</span></div>
+        <div class="bd" style="padding:0"><div id="recent"></div></div>
+      </div>
+    </section>
+
+    <!-- INTELLIGENCE LOG -->
+    <section class="view" id="view-log">
+      <div class="toolbar">
+        <div class="search"><input id="log-search" placeholder="Search reporting…"></div>
+        <select id="log-filter-int" style="width:auto"><option value="">All disciplines</option></select>
+        <div class="spacer"></div>
+        <button class="btn primary" id="btn-new-entry">+ Log Reporting</button>
+      </div>
+      <div class="card"><div class="bd" style="padding:0"><div id="log-table"></div></div></div>
+    </section>
+
+    <!-- ENTITIES -->
+    <section class="view" id="view-entities">
+      <div class="toolbar">
+        <div class="search"><input id="ent-search" placeholder="Search entities…"></div>
+        <select id="ent-filter-type" style="width:auto"><option value="">All types</option></select>
+        <div class="spacer"></div>
+        <button class="btn primary" id="btn-new-entity">+ Register Entity</button>
+      </div>
+      <div class="card"><div class="bd" style="padding:0"><div id="ent-table"></div></div></div>
+    </section>
+
+    <!-- LINK ANALYSIS -->
+    <section class="view" id="view-link">
+      <div class="toolbar">
+        <span class="legend">
+          <span><i class="dot" style="background:#3fb6c4"></i>Person</span>
+          <span><i class="dot" style="background:#d9a441"></i>Organization</span>
+          <span><i class="dot" style="background:#6fb98f"></i>Location</span>
+          <span><i class="dot" style="background:#9a8bd0"></i>Event</span>
+          <span><i class="dot" style="background:#d96a5b"></i>Asset/Other</span>
+        </span>
+        <div class="spacer"></div>
+        <button class="btn" id="btn-new-rel">+ Add Relationship</button>
+        <button class="btn ghost sm" id="btn-fit">Fit View</button>
+      </div>
+      <div id="netgraph"></div>
+      <p class="note" style="margin-top:10px">Force-directed association matrix. Node size reflects degree centrality (number of connections). Drag nodes to reposition; click a node to inspect the entity.</p>
+    </section>
+
+    <!-- GEO -->
+    <section class="view" id="view-geo">
+      <div class="toolbar">
+        <span class="legend">
+          <span><i class="dot" style="background:#6fb98f"></i>Reliable (A–B)</span>
+          <span><i class="dot" style="background:#d9a441"></i>Moderate (C–D)</span>
+          <span><i class="dot" style="background:#d96a5b"></i>Weak (E–F)</span>
+        </span>
+        <div class="spacer"></div>
+        <span class="note">Plots all reporting &amp; entities carrying coordinates.</span>
+      </div>
+      <div id="map"></div>
+    </section>
+
+    <!-- ACH -->
+    <section class="view" id="view-ach">
+      <div class="card" style="margin-bottom:16px">
+        <div class="hd"><h3>Analysis of Competing Hypotheses</h3><span class="tag">HEUER METHOD</span></div>
+        <div class="bd">
+          <p class="note" style="margin-top:0">Per Richards Heuer's methodology, the goal is not to confirm a favored hypothesis but to <b>disprove</b> hypotheses. The most likely hypothesis is the one with the <b>least inconsistent</b> evidence, not the most supporting evidence. Rate how each item of evidence fits each hypothesis.</p>
+          <div class="row2" style="margin-top:14px">
+            <div>
+              <label class="fl">Add Hypothesis</label>
+              <div style="display:flex;gap:8px"><input id="ach-h-input" placeholder="e.g. H1: Subject is a courier, not principal"><button class="btn sm" id="ach-add-h">Add</button></div>
+            </div>
+            <div>
+              <label class="fl">Add Evidence / Argument</label>
+              <div style="display:flex;gap:8px"><input id="ach-e-input" placeholder="e.g. Pattern-of-life shows daily border crossings"><button class="btn sm" id="ach-add-e">Add</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="hd"><h3>Consistency Matrix</h3><span class="tag" id="ach-diag">—</span></div>
+        <div class="bd ach-wrap"><div id="ach-matrix"></div></div>
+      </div>
+    </section>
+
+    <!-- TRADECRAFT -->
+    <section class="view ref" id="view-tradecraft"></section>
+  </main>
+</div>
+
+<!-- ===== Drawer ===== -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="dh"><h3 id="drawer-title">—</h3><button class="x" id="drawer-x">×</button></div>
+  <div class="db" id="drawer-body"></div>
+  <div class="df" id="drawer-foot"></div>
+</aside>
+
+<div class="flash" id="flash"></div>
+<input type="file" id="file-in" accept="application/json" style="display:none">
+<div class="class-banner bottom" data-aegis-class>Unclassified // Internal Use</div>
+
+<script>
+/* =========================================================================
+   ANALYTIC WORKBENCH — training simulation of all-source IC analytic practice
+   Encodes openly published tradecraft:
+   • Admiralty/NATO source reliability (A–F) & info credibility (1–6)
+   • ICD 203 estimative probability + analytic confidence
+   • Analysis of Competing Hypotheses (Heuer)
+   • Association / link analysis
+   ========================================================================= */
+
+/* Operational workbench: data is persisted via the suite store (AEGIS database
+   in secure mode, browser storage in local mode). */
+let DB={entries:[],entities:[],relationships:[],ach:{hyp:[],ev:[],matrix:{}}};
+
+/* ---- reference vocab ---- */
+const INTS=['HUMINT','SIGINT','GEOINT','IMINT','MASINT','OSINT','TECHINT','FININT','CYBINT'];
+const ENT_TYPES=['Person','Organization','Location','Event','Asset','Vehicle','Account','Other'];
+const REL_TYPES=['Associate of','Member of','Subordinate to','Communicates with','Financed by','Family of','Co-located with','Owns','Met with','Aligned with'];
+const RELIABILITY={A:'Completely reliable',B:'Usually reliable',C:'Fairly reliable',D:'Not usually reliable',E:'Unreliable',F:'Cannot be judged'};
+const CREDIBILITY={1:'Confirmed by independent sources',2:'Probably true',3:'Possibly true',4:'Doubtful',5:'Improbable',6:'Cannot be judged'};
+const WEP=[['almost no chance','01–05%','#d96a5b'],['very unlikely','05–20%','#d98a5b'],['unlikely','20–45%','#d9a441'],['roughly even chance','45–55%','#b9b96f'],['likely','55–80%','#8fbf7a'],['very likely','80–95%','#6fb98f'],['almost certain','95–99%','#4fb6a0']];
+const CONF=['Low','Moderate','High'];
+const ENT_COLOR={Person:'#3fb6c4',Organization:'#d9a441',Location:'#6fb98f',Event:'#9a8bd0',Asset:'#d96a5b',Vehicle:'#d96a5b',Account:'#d96a5b',Other:'#d96a5b'};
+const CC_VALS={CC:'Very Consistent',C:'Consistent',N:'N/A',I:'Inconsistent',II:'Very Inconsistent'};
+const CC_SCORE={CC:0,C:0,N:0,I:1,II:2}; // inconsistency weight (Heuer)
+
+/* ---- utils ---- */
+const $=s=>document.querySelector(s);
+const $$=s=>[...document.querySelectorAll(s)];
+const uid=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function load(){
+  DB.entries=await AEGIS.store.list('iw_entries');
+  DB.entities=await AEGIS.store.list('iw_entities');
+  DB.relationships=await AEGIS.store.list('iw_rels');
+  const a=await AEGIS.store.list('iw_ach');
+  DB.ach=(a&&a[0])?{hyp:a[0].hyp||[],ev:a[0].ev||[],matrix:a[0].matrix||{}}:{hyp:[],ev:[],matrix:{}};
+}
+function save(){
+  // Persist to the AEGIS database in secure mode, or browser storage in local mode.
+  Promise.all([
+    AEGIS.store.replaceAll('iw_entries',DB.entries),
+    AEGIS.store.replaceAll('iw_entities',DB.entities),
+    AEGIS.store.replaceAll('iw_rels',DB.relationships),
+    AEGIS.store.put('iw_ach',{id:'ach',hyp:DB.ach.hyp,ev:DB.ach.ev,matrix:DB.ach.matrix})
+  ]).catch(()=>flash('Save failed — check your connection'));
+}
+function flash(m){const f=$('#flash');f.textContent=m;f.classList.add('show');clearTimeout(f._t);f._t=setTimeout(()=>f.classList.remove('show'),2200)}
+function entName(id){const e=DB.entities.find(x=>x.id===id);return e?e.name:'[unknown]'}
+function dtgNow(){const d=new Date();const p=n=>String(n).padStart(2,'0');return p(d.getUTCDate())+p(d.getUTCHours())+p(d.getUTCMinutes())+'Z '+['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'][d.getUTCMonth()]+' '+String(d.getUTCFullYear()).slice(2)}
+
+/* =====================  SEED (fictional training scenario)  ===================== */
+function seed(){
+  if(DB.entries.length||DB.entities.length)return;
+  const e={};
+  const mk=(name,type,extra={})=>{const id=uid('e_');DB.entities.push(Object.assign({id,name,type,aliases:'',notes:'',lat:null,lng:null,place:''},extra));e[name]=id;return id};
+  mk('Marek Volkov','Person',{aliases:'"The Cartographer"',notes:'Suspected logistics coordinator. Frequent travel Vienna–Belgrade.',lat:48.2082,lng:16.3738,place:'Vienna, AT'});
+  mk('Lena Hauser','Person',{notes:'Front-company accountant. No prior derogatory.',lat:48.2100,lng:16.3700,place:'Vienna, AT'});
+  mk('Dragan Petrović','Person',{aliases:'D.P.',notes:'Believed courier. Pattern-of-life: daily border crossings.',lat:44.7866,lng:20.4489,place:'Belgrade, RS'});
+  mk('Helios Maritime Ltd','Organization',{notes:'Shell company; registered Cyprus. Holds three dormant accounts.',lat:35.1264,lng:33.4299,place:'Nicosia, CY'});
+  mk('Adriatic Freight Hub','Location',{notes:'Warehouse complex; suspected transshipment node.',lat:43.5081,lng:16.4402,place:'Split, HR'});
+  mk('Account HM-3391','Account',{notes:'Cyprus account; cyclical wire activity to Vienna.'});
+  mk('Meeting — Café Landtmann','Event',{notes:'Observed face-to-face contact, 19 MAR.',lat:48.2123,lng:16.3614,place:'Vienna, AT'});
+
+  const rel=(a,b,t,c)=>DB.relationships.push({id:uid('r_'),from:e[a],to:e[b],type:t,conf:c||'Moderate',notes:''});
+  rel('Marek Volkov','Helios Maritime Ltd','Owns','High');
+  rel('Lena Hauser','Helios Maritime Ltd','Member of','High');
+  rel('Helios Maritime Ltd','Account HM-3391','Owns','High');
+  rel('Dragan Petrović','Marek Volkov','Subordinate to','Moderate');
+  rel('Marek Volkov','Adriatic Freight Hub','Co-located with','Low');
+  rel('Marek Volkov','Lena Hauser','Met with','High');
+  rel('Meeting — Café Landtmann','Marek Volkov','Associate of','High');
+  rel('Meeting — Café Landtmann','Lena Hauser','Associate of','High');
+
+  const mkEntry=(o)=>DB.entries.push(Object.assign({id:uid('i_'),logged:Date.now(),tags:[],links:[]},o));
+  mkEntry({dtg:'191400Z MAR 26',title:'Observed meeting at Café Landtmann',int:'HUMINT',rel:'B',cred:'2',
+    text:'Source reports observing SUBJECT VOLKOV in a 40-minute meeting with female associate (assessed HAUSER) at Café Landtmann, Vienna. Documents exchanged. Source has firsthand access and a track record of accurate reporting.',
+    lat:48.2123,lng:16.3614,place:'Vienna, AT',links:[e['Marek Volkov'],e['Lena Hauser'],e['Meeting — Café Landtmann']],
+    confidence:'Moderate',wep:'likely',kj:'VOLKOV is very likely coordinating logistics through a Vienna-based front; we assess with moderate confidence that HAUSER manages associated finances.'});
+  mkEntry({dtg:'200300Z MAR 26',title:'Cyclical wire activity — Account HM-3391',int:'FININT',rel:'A',cred:'1',
+    text:'Financial reporting confirms recurring wire transfers from Cyprus account HM-3391 to a Vienna beneficiary on a 14-day cycle. Amounts structured below reporting thresholds.',
+    links:[e['Account HM-3391'],e['Helios Maritime Ltd']],confidence:'High',wep:'very likely',
+    kj:'Structuring pattern very likely indicates deliberate evasion of financial reporting controls.'});
+  mkEntry({dtg:'210915Z MAR 26',title:'Border crossing pattern — PETROVIĆ',int:'GEOINT',rel:'C',cred:'3',
+    text:'Geospatial pattern-of-life indicates SUBJECT PETROVIĆ crosses the RS–HR border on a near-daily basis, consistently routing through the Adriatic Freight Hub at Split.',
+    lat:44.7866,lng:20.4489,place:'Belgrade, RS',links:[e['Dragan Petrović'],e['Adriatic Freight Hub']],
+    confidence:'Low',wep:'roughly even chance',kj:'It is a roughly even chance that PETROVIĆ functions as a courier rather than an independent operator; corroboration is limited.'});
+  mkEntry({dtg:'221100Z MAR 26',title:'Open-source registry — Helios Maritime',int:'OSINT',rel:'B',cred:'2',
+    text:'Open corporate registry data shows Helios Maritime Ltd registered in Nicosia with nominal directors and no observable commercial maritime activity, consistent with a shell entity.',
+    lat:35.1264,lng:33.4299,place:'Nicosia, CY',links:[e['Helios Maritime Ltd']],confidence:'Moderate',wep:'likely',
+    kj:'Helios Maritime is likely a shell company used to obscure beneficial ownership.'});
+
+  DB.ach.hyp=[{id:uid('h_'),t:'H1: VOLKOV is the network principal directing logistics & finance'},
+              {id:uid('h_'),t:'H2: VOLKOV is a mid-level facilitator; true principal is unidentified'},
+              {id:uid('h_'),t:'H3: Activity is legitimate commercial business; pattern is coincidental'}];
+  DB.ach.ev=[{id:uid('v_'),t:'Owns the Helios shell company holding the accounts'},
+             {id:uid('v_'),t:'Observed receiving documents at face-to-face meeting'},
+             {id:uid('v_'),t:'Structured sub-threshold wire activity'},
+             {id:uid('v_'),t:'No prior derogatory reporting on any subject'}];
+  const [h1,h2,h3]=DB.ach.hyp,[v1,v2,v3,v4]=DB.ach.ev;
+  const set=(v,h,val)=>DB.ach.matrix[v.id+'|'+h.id]=val;
+  set(v1,h1,'CC');set(v1,h2,'I');set(v1,h3,'C');
+  set(v2,h1,'C');set(v2,h2,'C');set(v2,h3,'N');
+  set(v3,h1,'CC');set(v3,h2,'C');set(v3,h3,'II');
+  set(v4,h1,'I');set(v4,h2,'N');set(v4,h3,'CC');
+  save();
+}
+
+/* =====================  NAVIGATION  ===================== */
+const VIEWMETA={
+  dashboard:['COLLECTION / DASHBOARD','Dashboard'],
+  log:['COLLECTION / INTELLIGENCE LOG','Intelligence Log'],
+  entities:['COLLECTION / ENTITY REGISTRY','Entity Registry'],
+  link:['ANALYSIS / LINK ANALYSIS','Association Matrix'],
+  geo:['ANALYSIS / GEOINT','Geospatial Plot'],
+  ach:['ANALYSIS / ACH','Analysis of Competing Hypotheses'],
+  tradecraft:['REFERENCE / PRIMER','Tradecraft Primer']
+};
+let netReady=false,mapReady=false,NET=null,MAP=null,mapLayer=null;
+function go(v){
+  $$('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
+  $$('.view').forEach(s=>s.classList.toggle('active',s.id==='view-'+v));
+  $('#crumb').textContent=VIEWMETA[v][0];$('#viewtitle').textContent=VIEWMETA[v][1];
+  if(v==='link'){renderNet()}
+  if(v==='geo'){renderMap()}
+  if(v==='ach'){renderACH()}
+  if(v==='tradecraft'){renderTradecraft()}
+}
+$('#nav').addEventListener('click',e=>{const b=e.target.closest('.navbtn');if(b)go(b.dataset.view)});
+
+/* =====================  DASHBOARD  ===================== */
+function renderDash(){
+  $('#s-reports').textContent=DB.entries.length;
+  $('#s-ent').textContent=DB.entities.length;
+  $('#s-links').textContent=DB.relationships.length;
+  $('#s-geo').textContent=DB.entries.filter(e=>e.lat).length+DB.entities.filter(e=>e.lat).length;
+  $('#ct-log').textContent=DB.entries.length;$('#ct-ent').textContent=DB.entities.length;
+
+  // INT breakdown
+  const ic={};DB.entries.forEach(e=>ic[e.int]=(ic[e.int]||0)+1);
+  const maxI=Math.max(1,...Object.values(ic));
+  $('#int-breakdown').innerHTML=Object.keys(ic).length?Object.entries(ic).sort((a,b)=>b[1]-a[1]).map(([k,v])=>
+    `<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px"><span class="pill int">${k}</span><span>${v}</span></div><div class="score-bar"><i style="width:${v/maxI*100}%"></i></div></div>`).join(''):'<div class="empty">NO REPORTING</div>';
+
+  // reliability
+  const rc={};DB.entries.forEach(e=>rc[e.rel]=(rc[e.rel]||0)+1);
+  $('#rel-breakdown').innerHTML=Object.keys(rc).length?['A','B','C','D','E','F'].filter(k=>rc[k]).map(k=>
+    `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span class="pill r-${k}">${k} · ${esc(RELIABILITY[k])}</span><span style="font-family:var(--mono)">${rc[k]}</span></div>`).join(''):'<div class="empty">NO REPORTING</div>';
+
+  // recent
+  const recent=[...DB.entries].sort((a,b)=>b.logged-a.logged).slice(0,6);
+  $('#recent').innerHTML=recent.length?`<table><tbody>${recent.map(e=>`
+    <tr class="clickrow" data-entry="${e.id}">
+      <td style="font-family:var(--mono);font-size:10px;color:var(--ink-faint);white-space:nowrap">${esc(e.dtg||'')}</td>
+      <td><span class="pill int">${e.int}</span></td>
+      <td><b style="color:var(--ink);font-weight:500">${esc(e.title)}</b></td>
+      <td><span class="pill r-${e.rel}">${e.rel}${e.cred}</span></td>
+    </tr>`).join('')}</tbody></table>`:'<div class="empty">NO REPORTING LOGGED</div>';
+  $('#recent').querySelectorAll('[data-entry]').forEach(r=>r.onclick=()=>viewEntry(r.dataset.entry));
+}
+
+/* =====================  INTELLIGENCE LOG  ===================== */
+function renderLog(){
+  const q=($('#log-search').value||'').toLowerCase();
+  const fi=$('#log-filter-int').value;
+  // populate filter once
+  const sel=$('#log-filter-int');
+  if(sel.options.length<=1)INTS.forEach(i=>sel.add(new Option(i,i)));
+  let rows=[...DB.entries].sort((a,b)=>b.logged-a.logged)
+    .filter(e=>!fi||e.int===fi)
+    .filter(e=>!q||(e.title+e.text+(e.kj||'')).toLowerCase().includes(q));
+  $('#log-table').innerHTML=rows.length?`<table>
+    <thead><tr><th>DTG</th><th>Discipline</th><th>Summary</th><th>Eval</th><th>Confidence</th><th>Entities</th></tr></thead>
+    <tbody>${rows.map(e=>`<tr class="clickrow" data-entry="${e.id}">
+      <td style="font-family:var(--mono);font-size:10px;color:var(--ink-faint);white-space:nowrap">${esc(e.dtg||'')}</td>
+      <td><span class="pill int">${e.int}</span></td>
+      <td><b style="color:var(--ink);font-weight:500">${esc(e.title)}</b><div style="color:var(--ink-faint);font-size:11px;margin-top:2px">${esc((e.text||'').slice(0,80))}${e.text&&e.text.length>80?'…':''}</div></td>
+      <td><span class="pill r-${e.rel}" title="${esc(RELIABILITY[e.rel])} / ${esc(CREDIBILITY[e.cred])}">${e.rel}${e.cred}</span></td>
+      <td style="font-size:11px;color:var(--ink-dim)">${esc(e.confidence||'—')}</td>
+      <td style="font-family:var(--mono);font-size:10px;color:var(--ink-faint)">${(e.links||[]).length}</td>
+    </tr>`).join('')}</tbody></table>`:'<div class="empty">NO MATCHING REPORTING — LOG AN ITEM TO BEGIN</div>';
+  $('#log-table').querySelectorAll('[data-entry]').forEach(r=>r.onclick=()=>viewEntry(r.dataset.entry));
+}
+$('#log-search').addEventListener('input',renderLog);
+$('#log-filter-int').addEventListener('change',renderLog);
+
+function viewEntry(id){
+  const e=DB.entries.find(x=>x.id===id);if(!e)return;
+  openDrawer(e.title,`
+    <dl class="kv">
+      <dt>DTG</dt><dd style="font-family:var(--mono)">${esc(e.dtg||'—')}</dd>
+      <dt>Discipline</dt><dd><span class="pill int">${e.int}</span></dd>
+      <dt>Source Eval</dt><dd><span class="pill r-${e.rel}">${e.rel}</span> ${esc(RELIABILITY[e.rel])} &nbsp;/&nbsp; <b>${e.cred}</b> ${esc(CREDIBILITY[e.cred])}</dd>
+      ${e.place?`<dt>Location</dt><dd>${esc(e.place)} ${e.lat?`<span style="font-family:var(--mono);font-size:10px;color:var(--ink-faint)">[${e.lat.toFixed(3)}, ${e.lng.toFixed(3)}]</span>`:''}</dd>`:''}
+    </dl>
+    <div style="margin:16px 0 6px" class="fl" style="display:block">Raw Reporting</div>
+    <div class="report-text">${esc(e.text)}</div>
+    ${e.kj?`<div style="margin:16px 0 6px" class="fl">Key Judgment</div>
+      <div class="report-text" style="border-left-color:var(--amber)"><b style="color:var(--amber)">(${esc(e.confidence)} confidence)</b> ${esc(e.kj)} ${e.wep?`<span style="font-family:var(--mono);font-size:10px;color:var(--ink-faint)"> — assessed "${esc(e.wep)}"</span>`:''}</div>`:''}
+    ${(e.links||[]).length?`<div style="margin:16px 0 6px" class="fl">Linked Entities</div><div class="tag-input">${e.links.map(l=>`<span class="chip">${esc(entName(l))}</span>`).join('')}</div>`:''}
+    ${(e.tags||[]).length?`<div style="margin:16px 0 6px" class="fl">Tags</div><div class="tag-input">${e.tags.map(t=>`<span class="chip">#${esc(t)}</span>`).join('')}</div>`:''}
+  `,[
+    {label:'Edit',cls:'btn',fn:()=>entryForm(e)},
+    {label:'Delete',cls:'btn danger',fn:()=>{if(confirm('Delete this reporting item?')){DB.entries=DB.entries.filter(x=>x.id!==id);save();closeDrawer();refresh();flash('Reporting deleted')}}}
+  ]);
+}
+
+/* ===================== GEOCODING (auto-detect coordinates) ===================== */
+async function geocode(query){
+  try{
+    const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(query),{headers:{'Accept':'application/json'}});
+    const d=await r.json();
+    if(d&&d.length) return {lat:parseFloat(d[0].lat),lng:parseFloat(d[0].lon),name:d[0].display_name};
+  }catch(e){}
+  return null;
+}
+function wireGeo(placeId,latId,lngId,btnId,statusId){
+  const btn=document.getElementById(btnId); if(!btn) return;
+  btn.onclick=async()=>{
+    const q=(document.getElementById(placeId).value||'').trim();
+    const st=document.getElementById(statusId);
+    if(!q){st.style.color='var(--ink-faint)';st.textContent='Enter an address or city first.';return;}
+    st.style.color='var(--ink-dim)';st.textContent='Locating…';
+    const g=await geocode(q);
+    if(g){
+      document.getElementById(latId).value=g.lat.toFixed(5);
+      document.getElementById(lngId).value=g.lng.toFixed(5);
+      st.style.color='var(--green)';st.textContent='✓ '+g.name.slice(0,54);
+    }else{st.style.color='var(--red)';st.textContent='Not found — enter coordinates manually.';}
+  };
+}
+
+function entryForm(e){
+  e=e||{};
+  const linkOpts=DB.entities.map(en=>`<option value="${en.id}" ${(e.links||[]).includes(en.id)?'selected':''}>${esc(en.name)} (${en.type})</option>`).join('');
+  openDrawer(e.id?'Edit Reporting':'Log Reporting',`
+    <div class="field"><label class="fl">Summary / Title</label><input id="f-title" value="${esc(e.title||'')}" placeholder="Short reporting summary"></div>
+    <div class="row2">
+      <div class="field"><label class="fl">DTG (Date-Time Group)</label><input id="f-dtg" value="${esc(e.dtg||dtgNow())}"></div>
+      <div class="field"><label class="fl">Discipline (INT)</label><select id="f-int">${INTS.map(i=>`<option ${e.int===i?'selected':''}>${i}</option>`).join('')}</select></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label class="fl">Source Reliability</label><select id="f-rel">${Object.entries(RELIABILITY).map(([k,v])=>`<option value="${k}" ${e.rel===k?'selected':''}>${k} — ${v}</option>`).join('')}</select></div>
+      <div class="field"><label class="fl">Info Credibility</label><select id="f-cred">${Object.entries(CREDIBILITY).map(([k,v])=>`<option value="${k}" ${e.cred===k?'selected':''}>${k} — ${v}</option>`).join('')}</select></div>
+    </div>
+    <div class="field"><label class="fl">Raw Reporting</label><textarea id="f-text" placeholder="As-collected narrative…">${esc(e.text||'')}</textarea></div>
+    <div class="field"><label class="fl">Key Judgment (analyst assessment)</label><textarea id="f-kj" placeholder="Your bottom-line assessment…">${esc(e.kj||'')}</textarea></div>
+    <div class="row2">
+      <div class="field"><label class="fl">Estimative Probability (ICD 203)</label><select id="f-wep"><option value="">—</option>${WEP.map(w=>`<option value="${w[0]}" ${e.wep===w[0]?'selected':''}>${w[0]} (${w[1]})</option>`).join('')}</select></div>
+      <div class="field"><label class="fl">Analytic Confidence</label><select id="f-conf"><option value="">—</option>${CONF.map(c=>`<option ${e.confidence===c?'selected':''}>${c}</option>`).join('')}</select></div>
+    </div>
+    <div class="field"><label class="fl">Location (place name)</label><input id="f-place" value="${esc(e.place||'')}" placeholder="e.g. Vienna, AT"></div>
+    <div class="row2">
+      <div class="field"><label class="fl">Latitude</label><input id="f-lat" value="${e.lat??''}" placeholder="48.2082"></div>
+      <div class="field"><label class="fl">Longitude</label><input id="f-lng" value="${e.lng??''}" placeholder="16.3738"></div>
+    </div>
+    <div style="display:flex;gap:9px;align-items:center;margin:-4px 0 14px">
+      <button type="button" class="btn sm" id="f-geo">⌖ Locate from place</button>
+      <span class="note" id="f-geostatus" style="margin:0;font-style:normal"></span>
+    </div>
+    <div class="field"><label class="fl">Linked Entities (Ctrl/Cmd-click for multiple)</label><select id="f-links" multiple size="5">${linkOpts}</select></div>
+    <div class="field"><label class="fl">Tags (comma-separated)</label><input id="f-tags" value="${esc((e.tags||[]).join(', '))}"></div>
+  `,[
+    {label:'Cancel',cls:'btn ghost',fn:closeDrawer},
+    {label:'Save Reporting',cls:'btn primary',fn:async()=>{
+      const t=$('#f-title').value.trim();if(!t){flash('Title required');return}
+      let lat=parseFloat($('#f-lat').value),lng=parseFloat($('#f-lng').value);
+      const place=$('#f-place').value.trim();
+      if((isNaN(lat)||isNaN(lng))&&place){const g=await geocode(place);if(g){lat=g.lat;lng=g.lng;flash('Auto-located: '+place)}}
+      const rec={
+        id:e.id||uid('i_'),logged:e.logged||Date.now(),
+        title:t,dtg:$('#f-dtg').value.trim(),int:$('#f-int').value,
+        rel:$('#f-rel').value,cred:$('#f-cred').value,
+        text:$('#f-text').value.trim(),kj:$('#f-kj').value.trim(),
+        wep:$('#f-wep').value,confidence:$('#f-conf').value,
+        place:place,
+        lat:isNaN(lat)?null:lat,lng:isNaN(lng)?null:lng,
+        links:[...$('#f-links').selectedOptions].map(o=>o.value),
+        tags:$('#f-tags').value.split(',').map(s=>s.trim()).filter(Boolean)
+      };
+      if(e.id)DB.entries=DB.entries.map(x=>x.id===e.id?rec:x);else DB.entries.push(rec);
+      save();closeDrawer();refresh();flash('Reporting logged')
+    }}
+  ]);
+  wireGeo('f-place','f-lat','f-lng','f-geo','f-geostatus');
+}
+$('#btn-new-entry').onclick=()=>entryForm();
+
+/* =====================  ENTITIES  ===================== */
+function renderEnt(){
+  const q=($('#ent-search').value||'').toLowerCase();
+  const ft=$('#ent-filter-type').value;
+  const sel=$('#ent-filter-type');
+  if(sel.options.length<=1)ENT_TYPES.forEach(t=>sel.add(new Option(t,t)));
+  let rows=DB.entities.filter(e=>!ft||e.type===ft).filter(e=>!q||(e.name+e.aliases+e.notes).toLowerCase().includes(q));
+  $('#ent-table').innerHTML=rows.length?`<table>
+    <thead><tr><th>Designation</th><th>Type</th><th>Connections</th><th>Reporting</th><th>Location</th></tr></thead>
+    <tbody>${rows.map(e=>{
+      const deg=DB.relationships.filter(r=>r.from===e.id||r.to===e.id).length;
+      const rep=DB.entries.filter(i=>(i.links||[]).includes(e.id)).length;
+      return `<tr class="clickrow" data-ent="${e.id}">
+        <td><b style="color:var(--ink);font-weight:500">${esc(e.name)}</b>${e.aliases?`<div style="color:var(--ink-faint);font-size:11px">${esc(e.aliases)}</div>`:''}</td>
+        <td><span class="pill" style="color:${ENT_COLOR[e.type]};border-color:${ENT_COLOR[e.type]}">${e.type}</span></td>
+        <td style="font-family:var(--mono);font-size:11px">${deg}</td>
+        <td style="font-family:var(--mono);font-size:11px">${rep}</td>
+        <td style="font-size:11px;color:var(--ink-dim)">${esc(e.place||'—')}</td>
+      </tr>`}).join('')}</tbody></table>`:'<div class="empty">NO ENTITIES — REGISTER A SUBJECT TO BEGIN</div>';
+  $('#ent-table').querySelectorAll('[data-ent]').forEach(r=>r.onclick=()=>viewEnt(r.dataset.ent));
+}
+$('#ent-search').addEventListener('input',renderEnt);
+$('#ent-filter-type').addEventListener('change',renderEnt);
+
+function viewEnt(id){
+  const e=DB.entities.find(x=>x.id===id);if(!e)return;
+  const rels=DB.relationships.filter(r=>r.from===id||r.to===id);
+  const reps=DB.entries.filter(i=>(i.links||[]).includes(id));
+  openDrawer(e.name,`
+    <dl class="kv">
+      <dt>Type</dt><dd><span class="pill" style="color:${ENT_COLOR[e.type]};border-color:${ENT_COLOR[e.type]}">${e.type}</span></dd>
+      ${e.aliases?`<dt>Aliases</dt><dd>${esc(e.aliases)}</dd>`:''}
+      ${e.place?`<dt>Location</dt><dd>${esc(e.place)}</dd>`:''}
+    </dl>
+    ${e.notes?`<div class="fl" style="margin:16px 0 6px">Notes</div><div class="report-text">${esc(e.notes)}</div>`:''}
+    <div class="fl" style="margin:16px 0 6px">Relationships (${rels.length})</div>
+    ${rels.length?`<div style="display:flex;flex-direction:column;gap:6px">${rels.map(r=>{
+      const other=r.from===id?r.to:r.from;const dir=r.from===id?'→':'←';
+      return `<div class="chip" style="justify-content:flex-start;width:fit-content">${dir} ${esc(r.type)} <b style="color:var(--primary);cursor:default">${esc(entName(other))}</b> <span style="color:var(--ink-faint)">(${esc(r.conf)})</span></div>`}).join('')}</div>`:'<div class="note">No links recorded.</div>'}
+    <div class="fl" style="margin:16px 0 6px">Associated Reporting (${reps.length})</div>
+    ${reps.length?reps.map(r=>`<div class="chip" data-jump="${r.id}" style="cursor:pointer;width:fit-content;margin-bottom:4px"><span class="pill int">${r.int}</span> ${esc(r.title)}</div>`).join(''):'<div class="note">No reporting linked.</div>'}
+  `,[
+    {label:'Edit',cls:'btn',fn:()=>entForm(e)},
+    {label:'Delete',cls:'btn danger',fn:()=>{if(confirm('Delete entity and its relationships?')){DB.entities=DB.entities.filter(x=>x.id!==id);DB.relationships=DB.relationships.filter(r=>r.from!==id&&r.to!==id);DB.entries.forEach(i=>i.links=(i.links||[]).filter(l=>l!==id));save();closeDrawer();refresh();flash('Entity deleted')}}}
+  ]);
+  $('#drawer-body').querySelectorAll('[data-jump]').forEach(c=>c.onclick=()=>viewEntry(c.dataset.jump));
+}
+
+function entForm(e){
+  e=e||{};
+  openDrawer(e.id?'Edit Entity':'Register Entity',`
+    <div class="field"><label class="fl">Designation / Name</label><input id="g-name" value="${esc(e.name||'')}"></div>
+    <div class="field"><label class="fl">Type</label><select id="g-type">${ENT_TYPES.map(t=>`<option ${e.type===t?'selected':''}>${t}</option>`).join('')}</select></div>
+    <div class="field"><label class="fl">Aliases / AKA</label><input id="g-alias" value="${esc(e.aliases||'')}"></div>
+    <div class="field"><label class="fl">Notes</label><textarea id="g-notes">${esc(e.notes||'')}</textarea></div>
+    <div class="field"><label class="fl">Location (place name)</label><input id="g-place" value="${esc(e.place||'')}"></div>
+    <div class="row2">
+      <div class="field"><label class="fl">Latitude</label><input id="g-lat" value="${e.lat??''}"></div>
+      <div class="field"><label class="fl">Longitude</label><input id="g-lng" value="${e.lng??''}"></div>
+    </div>
+    <div style="display:flex;gap:9px;align-items:center;margin:-4px 0 14px">
+      <button type="button" class="btn sm" id="g-geo">⌖ Locate from place</button>
+      <span class="note" id="g-geostatus" style="margin:0;font-style:normal"></span>
+    </div>
+  `,[
+    {label:'Cancel',cls:'btn ghost',fn:closeDrawer},
+    {label:'Save Entity',cls:'btn primary',fn:async()=>{
+      const n=$('#g-name').value.trim();if(!n){flash('Name required');return}
+      let lat=parseFloat($('#g-lat').value),lng=parseFloat($('#g-lng').value);
+      const place=$('#g-place').value.trim();
+      if((isNaN(lat)||isNaN(lng))&&place){const g=await geocode(place);if(g){lat=g.lat;lng=g.lng;flash('Auto-located: '+place)}}
+      const rec={id:e.id||uid('e_'),name:n,type:$('#g-type').value,aliases:$('#g-alias').value.trim(),notes:$('#g-notes').value.trim(),place:place,lat:isNaN(lat)?null:lat,lng:isNaN(lng)?null:lng};
+      if(e.id)DB.entities=DB.entities.map(x=>x.id===e.id?rec:x);else DB.entities.push(rec);
+      save();closeDrawer();refresh();flash('Entity registered')
+    }}
+  ]);
+  wireGeo('g-place','g-lat','g-lng','g-geo','g-geostatus');
+}
+$('#btn-new-entity').onclick=()=>entForm();
+
+/* =====================  RELATIONSHIP  ===================== */
+function relForm(){
+  if(DB.entities.length<2){flash('Register at least two entities first');return}
+  const opt=sel=>DB.entities.map(e=>`<option value="${e.id}">${esc(e.name)} (${e.type})</option>`).join('');
+  openDrawer('Add Relationship',`
+    <div class="field"><label class="fl">From Entity</label><select id="rl-from">${opt()}</select></div>
+    <div class="field"><label class="fl">Relationship</label><select id="rl-type">${REL_TYPES.map(t=>`<option>${t}</option>`).join('')}</select></div>
+    <div class="field"><label class="fl">To Entity</label><select id="rl-to">${opt()}</select></div>
+    <div class="field"><label class="fl">Confidence</label><select id="rl-conf">${CONF.map(c=>`<option>${c}</option>`).join('')}</select></div>
+    <div class="field"><label class="fl">Notes</label><textarea id="rl-notes"></textarea></div>
+  `,[
+    {label:'Cancel',cls:'btn ghost',fn:closeDrawer},
+    {label:'Add Link',cls:'btn primary',fn:()=>{
+      const from=$('#rl-from').value,to=$('#rl-to').value;
+      if(from===to){flash('Select two different entities');return}
+      DB.relationships.push({id:uid('r_'),from,to,type:$('#rl-type').value,conf:$('#rl-conf').value,notes:$('#rl-notes').value.trim()});
+      save();closeDrawer();refresh();renderNet(true);flash('Relationship added')
+    }}
+  ]);
+  $('#rl-to').selectedIndex=1;
+}
+$('#btn-new-rel').onclick=relForm;
+
+/* =====================  LINK ANALYSIS (vis-network)  ===================== */
+/* entity-type glyphs for the link chart */
+function entSvg(type){
+  const c=ENT_COLOR[type]||'#9aa7b5';
+  const g={
+    Person:'<circle cx="24" cy="18" r="7"/><path d="M11 40c0-8 6-12 13-12s13 4 13 12z"/>',
+    Organization:'<rect x="12" y="14" width="24" height="24" rx="2"/><rect x="17" y="19" width="4" height="4" fill="#0c1016"/><rect x="27" y="19" width="4" height="4" fill="#0c1016"/><rect x="17" y="27" width="4" height="7" fill="#0c1016"/><rect x="27" y="27" width="4" height="7" fill="#0c1016"/>',
+    Location:'<path d="M24 9c-6 0-10 4-10 10 0 7 10 19 10 19s10-12 10-19c0-6-4-10-10-10z"/><circle cx="24" cy="19" r="4" fill="#0c1016"/>',
+    Event:'<rect x="12" y="15" width="24" height="21" rx="2"/><rect x="12" y="15" width="24" height="6" fill="#0c1016"/><rect x="17" y="11" width="3" height="7"/><rect x="28" y="11" width="3" height="7"/>',
+    Asset:'<path d="M24 11l12 6v14l-12 6-12-6V17z"/><path d="M24 12v25M13 18l11 6 11-6" fill="none" stroke="#0c1016" stroke-width="2"/>',
+    Vehicle:'<rect x="11" y="22" width="26" height="9" rx="2"/><path d="M15 22l3-6h12l3 6z"/><circle cx="17" cy="33" r="3"/><circle cx="31" cy="33" r="3"/>',
+    Account:'<rect x="11" y="16" width="26" height="17" rx="2"/><rect x="11" y="20" width="26" height="4" fill="#0c1016"/><rect x="15" y="27" width="9" height="3" fill="#0c1016"/>',
+    Other:'<circle cx="24" cy="24" r="9"/>'
+  }[type]||'<circle cx="24" cy="24" r="9"/>';
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">'+
+    '<circle cx="24" cy="24" r="22" fill="'+c+'" fill-opacity="0.16" stroke="'+c+'" stroke-width="2"/>'+
+    '<g fill="'+c+'">'+g+'</g></svg>';
+}
+function entIcon(type){return 'data:image/svg+xml;utf8,'+encodeURIComponent(entSvg(type));}
+
+function renderNet(force){
+  if(typeof vis==='undefined'){$('#netgraph').innerHTML='<div class="empty">NETWORK LIBRARY UNAVAILABLE OFFLINE</div>';return}
+  const deg={};DB.relationships.forEach(r=>{deg[r.from]=(deg[r.from]||0)+1;deg[r.to]=(deg[r.to]||0)+1});
+  const nodes=DB.entities.map(e=>({id:e.id,label:e.name,shape:'image',image:entIcon(e.type),
+    size:18+(deg[e.id]||0)*5,
+    color:{border:ENT_COLOR[e.type],highlight:{border:(document.documentElement.dataset.theme==='light'?'#1d2630':'#ffffff')}},
+    font:{color:(document.documentElement.dataset.theme==='light'?'#1d2630':'#d6dde6'),face:'IBM Plex Sans',size:13}}));
+  const edges=DB.relationships.map(r=>({id:r.id,from:r.from,to:r.to,label:r.type,arrows:'to',
+    font:{color:(document.documentElement.dataset.theme==='light'?'#4f5e6d':'#8b97a6'),size:9,face:'IBM Plex Mono',strokeColor:(document.documentElement.dataset.theme==='light'?'#ffffff':'#0c1016'),strokeWidth:3},
+    color:{color:(document.documentElement.dataset.theme==='light'?'#a8b6c4':'#3a4655'),highlight:'#3fb6c4'},
+    dashes:r.conf==='Low',width:r.conf==='High'?2.2:1.2,smooth:{type:'continuous'}}));
+  const data={nodes:new vis.DataSet(nodes),edges:new vis.DataSet(edges)};
+  if(!NET||force){
+    if(NET)NET.destroy();
+    NET=new vis.Network($('#netgraph'),data,{
+      physics:{barnesHut:{gravitationalConstant:-9000,springLength:150,springConstant:.03},stabilization:{iterations:160}},
+      interaction:{hover:true,tooltipDelay:120},nodes:{borderWidth:1.5},
+      layout:{improvedLayout:true}
+    });
+    NET.on('click',p=>{if(p.nodes.length){viewEnt(p.nodes[0])}});
+    netReady=true;
+  }else{NET.setData(data)}
+  if(!nodes.length)$('#netgraph').innerHTML='<div class="empty">REGISTER ENTITIES &amp; RELATIONSHIPS TO BUILD THE LINK CHART</div>';
+}
+$('#btn-fit').onclick=()=>NET&&NET.fit({animation:true});
+
+/* =====================  GEO (Leaflet)  ===================== */
+function relColor(r){return (r==='A'||r==='B')?'#6fb98f':(r==='C'||r==='D')?'#d9a441':'#d96a5b'}
+function renderMap(){
+  if(typeof L==='undefined'){$('#map').innerHTML='<div class="empty">MAP LIBRARY UNAVAILABLE OFFLINE</div>';return}
+  if(!MAP){
+    MAP=L.map('map',{zoomControl:true}).setView([46,15],4);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/'+(document.documentElement.dataset.theme==='light'?'light_all':'dark_all')+'/{z}/{x}/{y}{r}.png',{
+      attribution:'&copy; OpenStreetMap &copy; CARTO',subdomains:'abcd',maxZoom:19}).addTo(MAP);
+    mapLayer=L.layerGroup().addTo(MAP);
+  }
+  setTimeout(()=>MAP.invalidateSize(),120);
+  mapLayer.clearLayers();
+  const pts=[];
+  DB.entries.filter(e=>e.lat!=null).forEach(e=>{
+    const m=L.circleMarker([e.lat,e.lng],{radius:8,color:relColor(e.rel),fillColor:relColor(e.rel),fillOpacity:.55,weight:2});
+    m.bindPopup(`<b>${esc(e.title)}</b><br><span style="font-family:monospace;font-size:10px">${e.int} · ${e.rel}${e.cred} · ${esc(e.dtg||'')}</span><br>${esc((e.text||'').slice(0,120))}`);
+    m.addTo(mapLayer);pts.push([e.lat,e.lng]);
+  });
+  DB.entities.filter(e=>e.lat!=null).forEach(e=>{
+    const m=L.marker([e.lat,e.lng]);
+    m.bindPopup(`<b>${esc(e.name)}</b><br><span style="font-family:monospace;font-size:10px">${e.type}</span><br>${esc(e.notes||'')}`);
+    m.addTo(mapLayer);pts.push([e.lat,e.lng]);
+  });
+  if(pts.length)MAP.fitBounds(pts,{padding:[40,40],maxZoom:7});
+  if(!pts.length)flash('No geolocated items — add coordinates to reporting/entities');
+}
+
+/* =====================  ACH MATRIX  ===================== */
+function renderACH(){
+  const {hyp,ev,matrix}=DB.ach;
+  if(!hyp.length||!ev.length){$('#ach-matrix').innerHTML='<div class="empty">ADD AT LEAST ONE HYPOTHESIS AND ONE EVIDENCE ITEM</div>';$('#ach-diag').textContent='—';return}
+  // inconsistency score per hypothesis (lower = more likely)
+  const score={};hyp.forEach(h=>score[h.id]=0);
+  ev.forEach(v=>hyp.forEach(h=>{const val=matrix[v.id+'|'+h.id]||'N';score[h.id]+=CC_SCORE[val]}));
+  const minS=Math.min(...hyp.map(h=>score[h.id]));
+  const lead=hyp.filter(h=>score[h.id]===minS);
+  const maxS=Math.max(1,...hyp.map(h=>score[h.id]));
+
+  let html='<table class="ach"><thead><tr><th class="evcol">Evidence / Argument</th>'+
+    hyp.map(h=>`<th>${esc(h.t)}<br><button class="btn ghost sm mono" data-delh="${h.id}" style="margin-top:6px">remove</button></th>`).join('')+'</tr></thead><tbody>';
+  ev.forEach(v=>{
+    html+=`<tr><td class="evcell">${esc(v.t)}<br><button class="btn ghost sm mono" data-dele="${v.id}" style="margin-top:4px">remove</button></td>`;
+    hyp.forEach(h=>{
+      const val=matrix[v.id+'|'+h.id]||'N';
+      html+=`<td class="cc-${val}"><select data-cell="${v.id}|${h.id}">${Object.entries(CC_VALS).map(([k,lbl])=>`<option value="${k}" ${val===k?'selected':''}>${k==='N'?'N/A':k}</option>`).join('')}</select></td>`;
+    });
+    html+='</tr>';
+  });
+  html+='</tbody><tfoot><tr><td class="evcol">Inconsistency score (lower = more likely)</td>'+
+    hyp.map(h=>`<td style="color:${score[h.id]===minS?'var(--green)':'var(--ink)'}">${score[h.id]}<div class="score-bar"><i style="width:${(1-score[h.id]/maxS)*100}%;background:${score[h.id]===minS?'var(--green)':'var(--primary)'}"></i></div></td>`).join('')+'</tr></tfoot></table>';
+  $('#ach-matrix').innerHTML=html;
+  $('#ach-diag').textContent='LEADING: '+lead.map(h=>h.t.split(':')[0]).join(', ');
+
+  $$('#ach-matrix [data-cell]').forEach(s=>s.onchange=()=>{DB.ach.matrix[s.dataset.cell]=s.value;save();renderACH()});
+  $$('#ach-matrix [data-delh]').forEach(b=>b.onclick=()=>{DB.ach.hyp=DB.ach.hyp.filter(h=>h.id!==b.dataset.delh);save();renderACH()});
+  $$('#ach-matrix [data-dele]').forEach(b=>b.onclick=()=>{DB.ach.ev=DB.ach.ev.filter(v=>v.id!==b.dataset.dele);save();renderACH()});
+}
+$('#ach-add-h').onclick=()=>{const t=$('#ach-h-input').value.trim();if(!t)return;DB.ach.hyp.push({id:uid('h_'),t});$('#ach-h-input').value='';save();renderACH()};
+$('#ach-add-e').onclick=()=>{const t=$('#ach-e-input').value.trim();if(!t)return;DB.ach.ev.push({id:uid('v_'),t});$('#ach-e-input').value='';save();renderACH()};
+$('#ach-h-input').addEventListener('keydown',e=>{if(e.key==='Enter')$('#ach-add-h').click()});
+$('#ach-e-input').addEventListener('keydown',e=>{if(e.key==='Enter')$('#ach-add-e').click()});
+
+/* =====================  TRADECRAFT REFERENCE  ===================== */
+function renderTradecraft(){
+  $('#view-tradecraft').innerHTML=`
+  <div class="grid cols-2">
+    <div class="card"><div class="hd"><h3>Admiralty / NATO Source Evaluation</h3><span class="tag">STANAG-style</span></div><div class="bd">
+      <p class="note" style="margin-top:0">All-source reporting is evaluated on two independent axes: the <b>reliability of the source</b> and the <b>credibility of the information</b>. They are scored separately so an unreliable source can still report confirmed information, and vice-versa.</p>
+      <h4 style="margin-top:12px">Source Reliability</h4>
+      <table class="codetable"><tbody>${Object.entries(RELIABILITY).map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</tbody></table>
+      <h4 style="margin-top:14px">Information Credibility</h4>
+      <table class="codetable"><tbody>${Object.entries(CREDIBILITY).map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</tbody></table>
+    </div></div>
+
+    <div class="card"><div class="hd"><h3>Estimative Language</h3><span class="tag">ICD 203</span></div><div class="bd">
+      <p class="note" style="margin-top:0">The Intelligence Community Directive 203 analytic standards require that likelihood be expressed with a consistent vocabulary, and that <b>confidence</b> (a statement about the sourcing) be kept distinct from <b>probability</b> (the likelihood of the event).</p>
+      <h4>Probability Spectrum</h4>
+      <div class="wep-scale">${WEP.map(w=>`<div style="background:${w[2]}"><b>${w[0]}</b><br>${w[1]}</div>`).join('')}</div>
+      <h4 style="margin-top:16px">Confidence Levels</h4>
+      <ul>
+        <li><b>High</b> — well-corroborated information from multiple reliable sources; few assumptions.</li>
+        <li><b>Moderate</b> — credibly sourced and plausible, but not fully corroborated.</li>
+        <li><b>Low</b> — fragmentary, uncorroborated, or relies on significant assumptions.</li>
+      </ul>
+      <p class="note">Never conflate the two: a judgment can be "very likely" but held with only "low confidence."</p>
+    </div></div>
+
+    <div class="card"><div class="hd"><h3>Structured Analytic Techniques</h3><span class="tag">SATs</span></div><div class="bd">
+      <p class="note" style="margin-top:0">SATs externalize reasoning to counter cognitive bias. A representative set drawn from the publicly released analytic tradecraft primers:</p>
+      <ul>
+        <li><b>Key Assumptions Check</b> — list and stress-test the assumptions underpinning a judgment.</li>
+        <li><b>Analysis of Competing Hypotheses (ACH)</b> — evaluate all hypotheses simultaneously against the evidence, seeking to disprove rather than confirm.</li>
+        <li><b>Quality of Information Check</b> — re-examine the sourcing behind key reporting.</li>
+        <li><b>Indicators / Signposts</b> — define observable events that would signal a scenario is developing.</li>
+        <li><b>Devil's Advocacy &amp; Red Team</b> — deliberately challenge the consensus and reason from the adversary's perspective.</li>
+        <li><b>What-If Analysis</b> — assume an event has occurred and work backward to plausible pathways.</li>
+      </ul>
+    </div></div>
+
+    <div class="card"><div class="hd"><h3>Intelligence Disciplines</h3><span class="tag">The INTs</span></div><div class="bd">
+      <p class="note" style="margin-top:0">All-source analysis fuses collection from multiple disciplines; corroboration <i>across</i> disciplines materially raises confidence.</p>
+      <ul>
+        <li><b>HUMINT</b> — human sources.</li>
+        <li><b>SIGINT</b> — intercepted communications &amp; electronic signals.</li>
+        <li><b>GEOINT</b> — geospatial / imagery-derived intelligence.</li>
+        <li><b>IMINT</b> — imagery intelligence.</li>
+        <li><b>MASINT</b> — measurement &amp; signature intelligence.</li>
+        <li><b>OSINT</b> — publicly available information.</li>
+        <li><b>FININT</b> — financial intelligence.</li>
+        <li><b>TECHINT / CYBINT</b> — technical &amp; cyber-derived intelligence.</li>
+      </ul>
+    </div></div>
+  </div>
+  <p class="note" style="text-align:center;margin-top:20px;max-width:760px;margin-left:auto;margin-right:auto">
+    This is the operational workbench. It encodes openly published analytic frameworks (the Admiralty source-evaluation system, ICD 203 analytic standards, and structured analytic techniques from unclassified tradecraft primers). Reporting you log here is saved to the AEGIS database when signed in to a secure server, or to this browser in standalone mode. Apply your own organization's classification and handling rules.
+  </p>`;
+}
+
+/* =====================  DRAWER  ===================== */
+function openDrawer(title,body,actions){
+  $('#drawer-title').textContent=title;
+  $('#drawer-body').innerHTML=body;
+  const f=$('#drawer-foot');f.innerHTML='';
+  (actions||[]).forEach(a=>{const b=document.createElement('button');b.className=a.cls;b.textContent=a.label;b.onclick=a.fn;f.appendChild(b)});
+  $('#scrim').classList.add('open');$('#drawer').classList.add('open');
+}
+function closeDrawer(){$('#scrim').classList.remove('open');$('#drawer').classList.remove('open')}
+$('#drawer-x').onclick=closeDrawer;$('#scrim').onclick=closeDrawer;
+
+/* =====================  EXPORT / IMPORT / PURGE  ===================== */
+$('#btn-export').onclick=()=>{
+  const blob=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='analytic_workbench_'+Date.now()+'.json';a.click();flash('Case file exported')
+};
+$('#btn-import').onclick=()=>$('#file-in').click();
+$('#file-in').onchange=ev=>{
+  const f=ev.target.files[0];if(!f)return;const r=new FileReader();
+  r.onload=()=>{try{const d=JSON.parse(r.result);DB={entries:d.entries||[],entities:d.entities||[],relationships:d.relationships||[],ach:d.ach||{hyp:[],ev:[],matrix:{}}};save();refresh();renderNet(true);flash('Case file imported')}catch(e){flash('Invalid file')}};
+  r.readAsText(f);ev.target.value='';
+};
+$('#btn-purge').onclick=()=>{if(confirm('Purge ALL workbench data? This cannot be undone.')){DB={entries:[],entities:[],relationships:[],ach:{hyp:[],ev:[],matrix:{}}};save();refresh();renderNet(true);flash('All data purged')}};
+
+/* =====================  BOOT  ===================== */
+function refresh(){renderDash();renderLog();renderEnt();if($('#view-ach').classList.contains('active'))renderACH()}
+function tick(){$('#dtg').textContent=dtgNow()}
+(async function(){
+  if(!(await AEGIS.auth.require())) return;
+  if(AEGIS.applyChrome) AEGIS.applyChrome();
+  await load(); refresh(); tick(); setInterval(tick,15000);
+})();
+</script>
+</body>
+</html>
